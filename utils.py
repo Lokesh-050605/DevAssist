@@ -1,3 +1,5 @@
+import json
+
 def extract_command(response_text):
     """
     Extracts the exact terminal command from AI response.
@@ -20,3 +22,12 @@ def extract_command(response_text):
     command = cleaned_lines[-1] if cleaned_lines else ""
 
     return command if command else "ERROR: No command found."
+
+def load_user_config(filepath="user_config.json"):
+    """Loads user configuration from a JSON file."""
+    try:
+        with open(filepath, "r") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
