@@ -32,7 +32,7 @@ def generate_command(user_input):
     - **"Navigate to Documents folder"** → `cd Documents`
     - **"Open the python file config"** → `nvim config.py`
     - **"open the file config.py"** → `nvim config.py`
-    - **"edit the java file source"** → `nvim source.java`
+    - **"edit the java file sample"** → `nvim sample.java`
 
     **Instruction:** {user_input}  
     **Command:**
