@@ -30,6 +30,9 @@ def generate_command(user_input):
     - **"Compile and execute program.c"** → `gcc program.c -o program && ./program`
     - **"Compile and run Java file sample.java"** → `javac sample.java && java sample`
     - **"Navigate to Documents folder"** → `cd Documents`
+    - **"Open the python file config"** → `nvim config.py`
+    - **"open the file config.py"** → `nvim config.py`
+    - **"edit the java file source"** → `nvim source.java`
 
     **Instruction:** {user_input}  
     **Command:**
