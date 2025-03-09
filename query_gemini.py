@@ -3,11 +3,8 @@ import json
 from query_generator import classify_query, generate_query
 
 
-def query_gemini(user_input):
+def query_gemini(user_input,classification_result):
     """Classifies the query, generates a structured prompt, and fetches Gemini's response."""
-    
-    # Step 1: Classify the query
-    classification_result = classify_query(user_input)
     
     if "error" in classification_result:
         return {"error": "Failed to classify query."}
@@ -21,21 +18,52 @@ def query_gemini(user_input):
     # Step 3: Send request to Gemini API
     model = genai.GenerativeModel("gemini-1.5-pro")
     response = model.generate_content(formatted_prompt)
-    
+
+    return response
+
+def response_parser(response, classification):
+    """Parses the response from Gemini based on the classification result."""
+
+    print(f"Response: {response}")
+    print(f"Classification: {classification}")
+
     try:
-        # Step 4: Extract JSON from response
-        clean_response = response.text.strip("```json\n").strip("```")
-        parsed_response = json.loads(clean_response)
-        
-        # Ensure the response follows the expected format
-        if "commands" in parsed_response and isinstance(parsed_response["commands"], list):
-            return parsed_response  # Return parsed command list
+        # Extract text response
+        response_text = response.text
 
-        return {"error": "Invalid response format from Gemini."}
-    
-    except (json.JSONDecodeError, AttributeError):
-        return {"error": "Failed to parse Gemini's response."}
+        # Process classification type
+        query_class = classification.get("class", "None")
 
+        if query_class == "general_query":
+            return {"general_response": response_text}
+
+        elif query_class == "terminal_command":
+            try:
+                response_text = response_text.strip('```json\n').strip('```')  # Handle incorrect formatting
+                parsed_response = json.loads(response_text)
+                if isinstance(parsed_response, dict) and "commands" in parsed_response:
+                    return {"commands": parsed_response["commands"]}
+            except json.JSONDecodeError:
+                return {"error": "Invalid JSON format in terminal command response."}
+
+        elif query_class == "debugging":
+            return {"debugging_suggestions": response_text}
+
+        elif query_class == "file_query":
+            try:
+                parsed_response = json.loads(response_text)
+                return {
+                    "file_name": parsed_response.get("file_name", ""),
+                    "file_content": parsed_response.get("file_content", "File content not provided.")
+                }
+            except json.JSONDecodeError:
+                return {"error": "Invalid JSON format in file query response."}
+
+        else:
+            return {"error": f"Unknown query classification: {query_class}"}
+
+    except (IndexError, AttributeError) as e:
+        return {"error": f"Parsing error: {str(e)}"}
 
 # # Example usage
 # user_input = "push changes to git"

@@ -140,6 +140,4 @@ def generate_query(user_input, classification_result):
     return json.dumps({"error": "Invalid query classification."}, indent=4)
 
 
-
-
 ##############################################
