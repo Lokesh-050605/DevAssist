@@ -1,18 +1,16 @@
-from speech import speak
+from response_processor import process_response
+from utils import speak
+from query_generator import classify_query
+from query_gemini import query_gemini,response_parser
 
-def process_command(command):
+def process_command(user_input):
     """Processes user commands and provides appropriate responses."""
-    command = command.lower()
-
-    if command in ["hello", "hi"]:
-        response = "Hello! How can I assist you today?"
-    elif command in ["exit", "quit"]:
-        response = "Goodbye! Exiting DevAssist."
-    elif command in ["time"]:
-        from datetime import datetime
-        response = f"The current time is {datetime.now().strftime('%H:%M:%S')}"
-    else:
-        response = f"Sorry, I don't understand the command: {command}"
-
-    print(f"[Assistant]: {response}")
-    speak(response)
+    classification_result = classify_query(user_input)
+    print("Classification Result:", classification_result)
+    speak("Query classified.")
+    gemini_response = query_gemini(user_input,classification_result)
+    print("Gemini Response:", gemini_response)
+    parsed_response =response_parser(gemini_response, classification_result)
+    print("Parsed Response:", parsed_response)
+    speak("Processing command.")
+    process_response(classification_result, parsed_response)
