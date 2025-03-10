@@ -1,21 +1,8 @@
-import subprocess
-import json
-import pyttsx3  # For text-to-speech (TTS)
+# Description: This file contains the function to process the response from Gemini and take the necessary action.
 import os
+from interactive_debug import interactive_debugging
+from utils import speak, execute_command
 
-def speak(text):
-    """Converts text to speech."""
-    engine = pyttsx3.init()
-    engine.say(text)
-    engine.runAndWait()
-
-def execute_command(command):
-    """Executes a terminal command and returns its output."""
-    try:
-        result = subprocess.run(command, shell=True, text=True, capture_output=True)
-        return result.stdout.strip() if result.stdout else result.stderr.strip()
-    except Exception as e:
-        return f"Error executing command: {str(e)}"
 
 def read_file(file_path):
     """Reads the content of a given file."""
@@ -58,10 +45,10 @@ def process_response(classification_result, gemini_response):
         return {"executed_commands": command_outputs}
 
     elif query_class == "debugging":
-        suggestions = gemini_response.get("debugging_suggestions", "No debugging steps provided.")
-        print("Debugging Suggestions:")
-        print(suggestions)
-        return {"debugging_suggestions": suggestions}
+        suggestions = gemini_response.get("debugging_suggestions", {})
+        print(10*"#")
+        print(f"Debugging Suggestions: {suggestions}")
+        interactive_debugging(suggestions)
 
     elif query_class == "file_query":
         file_name = gemini_response.get("file_name", "")
@@ -82,7 +69,9 @@ from query_generator import classify_query
 from query_gemini import query_gemini,response_parser
 
 
-user_input = "push changes to git"
+user_input ='''push changes to git'''
+
+# user_input ='''ModuleNotFoundError: No module named 'requests' '''
 classification_result = classify_query(user_input)
 gemini_response = query_gemini(user_input,classification_result)
 

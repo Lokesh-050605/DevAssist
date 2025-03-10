@@ -5,9 +5,9 @@ import threading
 
 # Initialize Text-to-Speech Engine
 engine = pyttsx3.init()
-speech_queue = queue.Queue()  # Queue to manage speech requests
-exit_event = threading.Event()  # Event to stop threads gracefully
-stop_speech = threading.Event()  # Flag to stop speech if user starts speaking
+speech_queue = queue.Queue()
+exit_event = threading.Event()
+stop_speech = threading.Event()
 
 def speech_worker():
     """Thread function to process speech requests sequentially."""
@@ -15,7 +15,8 @@ def speech_worker():
         try:
             text = speech_queue.get(timeout=1)
             if stop_speech.is_set():
-                continue  # Skip speaking if user is speaking
+                continue  # Skip speaking if user is typing
+            print(f"[Assistant]: {text}")  
             engine.say(text)
             engine.runAndWait()
             speech_queue.task_done()
@@ -27,11 +28,10 @@ def speak(text):
     speech_queue.put(text)
 
 def listen_for_wake_word(callback):
-    """Listens for the wake word 'Dev' or allows typing to activate DevAssist."""
+    """Listens for the wake word 'Dev' or allows typing."""
     recognizer = sr.Recognizer()
-    
-    print("Listening for 'Dev' to activate or type 'Dev' to start...")
-    speak("Listening for Dev to activate or type Dev to start.")
+    print("[Listening]: Waiting for 'Dev' wake word...")
+    speak("Listening for wake word Dev")
 
     while not exit_event.is_set():
         with sr.Microphone() as source:
@@ -39,23 +39,22 @@ def listen_for_wake_word(callback):
                 recognizer.adjust_for_ambient_noise(source, duration=1)
                 audio = recognizer.listen(source)
                 command = recognizer.recognize_google(audio).lower()
-                
+
                 if "dev" in command:
-                    print("Wake word detected! DevAssist is now active.")
-                    speak("Wake word detected! DevAssist is now active.")
+                    print("[Wake Word Detected]: Processing command...")
+                    speak("Wake word detected. Please say your command.")
                     callback()
                     break
-
             except sr.UnknownValueError:
-                pass  # Ignore unrecognized speech
+                pass  
             except sr.RequestError:
-                print("Speech Recognition service error.")
+                print("[Error]: Speech Recognition service error.")
                 speak("Speech Recognition service error.")
-        
+
         # Allow user to type the wake word
-        user_input = input("Type 'Dev' to activate: ").strip().lower()
+        user_input = input("[Type 'Dev' to activate]: ").strip().lower()
         if user_input == "dev":
-            print("Wake word detected! DevAssist is now active.")
-            speak("Wake word detected! DevAssist is now active.")
+            print("[Wake Word Detected]: Processing command...")
+            speak("Wake word detected. Please say your command.")
             callback()
             break

@@ -47,7 +47,29 @@ def response_parser(response, classification):
                 return {"error": "Invalid JSON format in terminal command response."}
 
         elif query_class == "debugging":
-            return {"debugging_suggestions": response_text}
+            try:
+                # Strip potential markdown formatting
+                response_text = response_text.strip('```json\n').strip('```')
+
+                # Parse JSON
+                parsed_response = json.loads(response_text)
+
+                # Extract debugging details
+                return{
+                    "debugging_suggestions":{
+                "error_category": parsed_response.get("error_category", "Unknown"),
+                "probable_causes": parsed_response.get("probable_causes", []),
+                "step_by_step_fix": parsed_response.get("step_by_step_fix", []),
+                "suggested_fix": parsed_response.get("suggested_fix", ""),
+                "auto_fix_command": parsed_response.get("auto_fix_command", ""),
+                "alternative_solutions": parsed_response.get("alternative_solutions", []),
+                "preventive_measures": parsed_response.get("preventive_measures", [])
+                }
+                } 
+
+
+            except json.JSONDecodeError:
+                return {"error": "Invalid JSON format in debugging response."}
 
         elif query_class == "file_query":
             try:
@@ -66,6 +88,10 @@ def response_parser(response, classification):
         return {"error": f"Parsing error: {str(e)}"}
 
 # # Example usage
-# user_input = "push changes to git"
-# result = query_gemini(user_input)
-# print(json.dumps(result, indent=4))
+# user_input = '''unknown option --v
+# usage: C:\\Users\\lokes\\AppData\\Local\\Programs\\Python\\Python312\\python.exe [option] ... [-c cmd | -m mod | file | -] [arg] ...        
+# Try `python -h' for more information.'''
+# classification_result = classify_query(user_input)
+# result = query_gemini(user_input, classification_result)
+# parsed_result = response_parser(result, classification_result)
+# print(parsed_result)

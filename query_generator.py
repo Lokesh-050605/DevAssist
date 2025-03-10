@@ -1,29 +1,94 @@
 import google.generativeai as genai
 import json
+import subprocess
 from config import configure_api
 from utils import load_user_config
+import os
 
+def extract_file_content(file_name):
+    """Reads the content of a file and returns it as a string."""  
+    if file_name and os.path.exists(file_name):
+        try:
+            with open(file_name, "r", encoding="utf-8") as file:
+                return file.read()
+        except Exception as e:
+            return f"Error reading file: {str(e)}"
+    return "No valid file found."
+
+
+def execute_command(command):
+    """Executes a shell command and returns the output."""
+    try:
+        return subprocess.check_output(command, shell=True, text=True).strip()
+    except subprocess.CalledProcessError as e:
+        return f"Error executing command: {str(e)}"
 
 def classify_query(user_input):
-    """Classifies the given query into a predefined category and extracts required fields."""
+    """Classifies the given query and determines necessary prerequisites."""
     
     classification_prompt = f'''
-    You are a query classifier. Categorize the given user query into one of the following classes:
+    You are an intelligent query classifier and debugging assistant. Categorize the given user query into one of the following classes:
     - "general_query": For general questions like "What is LLM?", "Hi", etc.
     - "terminal_command": For requests that require a terminal command, such as "list files in the current directory" or "check Python version".
     - "debugging": When the query includes an error message and requires debugging.
     - "file_query": When the user queries about a specific file's content.
 
-    Additionally, if the query requires extra context (e.g., a filename for file queries), extract the necessary fields under "requires".
+    Additionally, extract necessary fields under "requires":
+    - `"question": "<question to ask the user>"` → If clarification is needed.
+    - `"command": "<command to execute>"` → If a terminal command should be run.
+    - `"error_analysis": "<steps to diagnose and fix the issue>"` → If debugging, analyze and suggest steps to resolve.
+    - `"file_content": "<filename>"` → If the error is related to a file and its content is needed.
+    - `"installed_packages": "<package_name>"` → If the error is related to missing dependencies.
+    - `"system_info": "<system_detail>"` → If debugging requires OS, Python version, etc.
+    - `"db_schema": "<table_name>"` → If the issue is related to a database query.
 
-    If additional input is required, include it in `"requires"` using:
-    - `"question": "<question to ask the user>"` → When clarification from the user is needed.
-    - `"command": "<command to execute>"` → When a terminal command should be run to gather required information.
+    ### **Debugging-Specific Handling**:
+    If the query contains an error:
+    1. Identify the root cause.
+    2. Determine what additional information is needed to debug.
+    3. Suggest commands or ask for missing inputs.
 
     ### **Examples**:
-    - For `"git push"`, include `"command": "git status"` to get changes before pushing.
-    - For `"clone a repository"`, include `"question": "Provide the repository link to clone."`
-    - For `"run a C program"`, include `"question": "Which C file do you want to compile and run?"`
+    - **Python Import Error**: `"ModuleNotFoundError: No module named 'requests'"`
+      ```json
+      {{
+          "class": "debugging",
+          "requires": {{
+              "error_message": "The 'requests' module is not installed.",
+              "command": "pip show requests"
+          }}
+      }}
+      ```
+    - **Syntax Error in File**: `"SyntaxError: unexpected EOF while parsing in script.py"`
+      ```json
+      {{
+          "class": "debugging",
+          "requires": {{
+              "error_analysis": "The script might be incomplete.",
+              "file_content": "script.py"
+          }}
+      }}
+      ```
+    - **Database Error**: `"ERROR: relation 'users' does not exist"`
+      ```json
+      {{
+          "class": "debugging",
+          "requires": {{
+              "error_analysis": "The 'users' table might be missing in the database.",
+              "db_schema": "users"
+          }}
+      }}
+      ```
+    - **Git Error**: `"fatal: not a git repository"`
+      ```json
+      {{
+          "class": "debugging",
+          "requires": {{
+              "error_analysis": "You're not in a Git repository. Running 'git status' to check.",
+              "command": "git status"
+          }}
+      }}
+      ```
 
     ### **Expected JSON format**:
     ```json
@@ -33,11 +98,12 @@ def classify_query(user_input):
             "<required_field>": "<value>"
         }}
     }}
+    ```
 
-    Ensure that:
+    Ensure:
+    - The response is always valid JSON.
     - Only relevant fields are included in "requires".
     - If no extra input is required, "requires" should be an empty object.
-    - The response is always valid JSON.
 
     User Query: "{user_input}"
     '''
@@ -52,7 +118,7 @@ def classify_query(user_input):
         return {"error": "Invalid JSON response from Gemini."}
 
 
-import subprocess
+
 
 def generate_query(user_input, classification_result):
     """Generates a structured query based on the classification result, either by asking the user for missing input or executing a command."""
@@ -74,10 +140,14 @@ def generate_query(user_input, classification_result):
             required["command_output"] = command_output  # Store command output
         except subprocess.CalledProcessError as e:
             required["command_output"] = f"Error executing command: {str(e)}"
+    # Extract file content if 'file_name' exists
+    if "file_content" in required:
+        required["file_name"] = required["file_name"]
+        required["file_content"] = extract_file_content(required["file_content"])
 
     # Generate prompt based on query classification
     if query_class == "general_query":
-        return user_input  # Return user input as normal query
+       return user_input + " Provide a **concise** answer (within 2-3 sentences) as this will be read aloud to a visually impaired developer."
 
     elif query_class == "terminal_command":
         prompt = {
@@ -108,18 +178,41 @@ def generate_query(user_input, classification_result):
 
     elif query_class == "debugging":
         error_message = required.get("error_message", "")
-        if not error_message:
+        if not user_input:
             return json.dumps({"error": "No error message provided for debugging."}, indent=4)
 
         prompt = {
-            "instruction": "Analyze the given error message and provide a debugging solution.",
+            "instruction": (
+                "You are an AI-powered debugging assistant helping a **blind developer** using a terminal. "
+                "Analyze the given error message, classify it (Syntax Error, Import Error, Runtime Error, etc.), "
+                "and provide a structured, step-by-step debugging guide."
+            ),
             "os": os_name,
-            "error_message": error_message,
-            "requires": required,  # Attach user input or command output
-            "context": user_config,
-            "expected_output": "Return a JSON containing debugging steps and possible solutions."
+            "error_message": user_input,
+            "error": error_message,
+            "context": user_config, 
+            "debugging_type": (
+                "Detect and classify the error as one of the following: Syntax Error, Import Error, "
+                "Runtime Error, Logical Error, Compilation Error, Dependency Error, or Other."
+            ),
+            "requires": required,
+            "response_format": {
+                "error_category": "<Identified Error Type>",
+                "probable_causes": ["<Possible cause 1>", "<Possible cause 2>"],
+                "step_by_step_fix": [
+                    "<Ask the user if they want to check something>",
+                    "<If yes, provide the command>",
+                    "<Ask user if they want to execute the fix>"
+                ],
+                "suggested_fix": "<Best solution>",
+                "auto_fix_command": "<Command to execute the fix>",
+                "alternative_solutions": ["<Alternative approach 1>", "<Alternative approach 2>"],
+                "preventive_measures": ["<Best practices to avoid similar issues>"]
+            }
         }
         return json.dumps(prompt, indent=4)
+
+
 
     elif query_class == "file_query":
         file_name = required.get("file_name", "")

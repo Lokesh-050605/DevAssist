@@ -1,4 +1,13 @@
 import json
+import pyttsx3
+import subprocess
+import os
+
+def speak(text):
+    """Converts text to speech."""
+    engine = pyttsx3.init()
+    engine.say(text)
+    engine.runAndWait()
 
 def extract_command(response_text):
     """
@@ -30,4 +39,12 @@ def load_user_config(filepath="user_config.json"):
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
+    
+def execute_command(command):
+    """Executes a terminal command and returns its output."""
+    try:
+        result = subprocess.run(command, shell=True, text=True, capture_output=True)
+        return result.stdout.strip() if result.stdout else result.stderr.strip()
+    except Exception as e:
+        return f"Error executing command: {str(e)}"
 

@@ -1,137 +1,133 @@
-import speech_recognition as sr
-import pyttsx3
 import threading
 import queue
+import speech_recognition as sr
+from speech import speak, speech_worker, exit_event, stop_speech
+from command_processor import process_command
 
-# Initialize Text-to-Speech Engine
-engine = pyttsx3.init()
-speech_queue = queue.Queue()  # Queue to manage speech requests
-exit_event = threading.Event()  # Event to stop threads gracefully
-stop_speech = threading.Event()  # Flag to stop speech if user starts speaking
-
-# Queue for user input
+# Queue to store user input (from voice or text)
 input_queue = queue.Queue()
 
-def speech_worker():
-    """Thread function to process speech requests sequentially."""
-    while not exit_event.is_set():
-        try:
-            text = speech_queue.get(timeout=1)
-            if stop_speech.is_set():
-                continue  # Skip speaking if user is speaking
-            
-            engine.say(text)
-            engine.runAndWait()
-            speech_queue.task_done()
-        except queue.Empty:
-            continue  # No pending speech requests
-
-def speak(text):
-    """Add text to the speech queue for processing."""
-    speech_queue.put(text)
-
 def listen_for_wake_word():
-    """Continuously listens for the wake word 'Dev' and also allows typing."""
+    """Continuously listens for the wake word 'Dev' before activating the assistant."""
     recognizer = sr.Recognizer()
-    print("Say 'Dev' to activate or type 'Dev' to start...")
+
+    print("[Listening]: Say 'Dev' to activate or type 'Dev'...")
     speak("Say Dev to activate or type Dev to start.")
 
     while not exit_event.is_set():
         with sr.Microphone() as source:
             recognizer.adjust_for_ambient_noise(source, duration=1)
-            print("Listening for 'Dev'...")
+            print("[Waiting for 'Dev' wake word]...")
             try:
                 audio = recognizer.listen(source, timeout=5)
                 command = recognizer.recognize_google(audio).lower()
 
                 if "dev" in command:
-                    print("Wake word detected! DevAssist is now active.")
+                    print("[Wake Word Detected]: DevAssist is now active!")
                     speak("Wake word detected! DevAssist is now active.")
                     handle_user_input()
-                    break
-            except sr.UnknownValueError:
-                pass  # Ignore and keep listening
-            except sr.RequestError:
-                print("Speech service error.")
-            except sr.WaitTimeoutError:
-                pass  # No speech detected, continue listening
+                    break  # Start handling input after wake word detection
 
-        # Allow user to type wake word
+            except sr.UnknownValueError:
+                pass  # Ignore if speech is unclear
+            except sr.RequestError:
+                print("[Error]: Speech recognition service unavailable.")
+                speak("Speech recognition service unavailable.")
+            except sr.WaitTimeoutError:
+                pass  # Continue listening if no speech detected
+
+        # Allow user to type the wake word
         user_input = input("Type 'Dev' to activate: ").strip().lower()
         if user_input == "dev":
-            print("Wake word detected! DevAssist is now active.")
+            print("[Wake Word Detected]: DevAssist is now active!")
             speak("Wake word detected! DevAssist is now active.")
             handle_user_input()
             break
 
 def handle_user_input():
-    """Handles both voice and text input simultaneously."""
+    """Handles both voice and text input in parallel."""
     recognizer = sr.Recognizer()
-    
+
+    # Start voice & text input in separate threads
+    voice_thread = threading.Thread(target=capture_voice_input, args=(recognizer,), daemon=True)
+    text_thread = threading.Thread(target=capture_text_input, daemon=True)
+
+    voice_thread.start()
+    text_thread.start()
+
+    # Keep processing input continuously
     while not exit_event.is_set():
-        print("\nSelect Input Mode:\n[1] Voice Input\n[2] Text Input\n[3] Exit")
-        speak("Select input mode. Press 1 for voice input, 2 for text input, or 3 to exit.")
-
-        text_thread = threading.Thread(target=capture_text_input, daemon=True)
-        voice_thread = threading.Thread(target=capture_voice_input, args=(recognizer,), daemon=True)
-        
-        text_thread.start()
-        voice_thread.start()
-
-        text_thread.join()
-        voice_thread.join()
-
-        user_input = input_queue.get() if not input_queue.empty() else None  # Get input from queue
+        user_input = input_queue.get() if not input_queue.empty() else None
 
         if user_input:
-            print(f"Processing Command: {user_input}")
-            speak(f"You said: {user_input}")  # Read aloud user input
-            process_command(user_input)
+            print(f"[Processing Command]: {user_input}")
+            speak(f"Processing command: {user_input}")
+            process_command(user_input)  # Send command for processing
 
-        if user_input in ["exit", "quit", "3"]:
-            print("Exiting DevAssist...")
-            speak("Exiting DevAssist...")
+        if user_input in ["exit", "quit"]:
+            print("[Shutting Down]: DevAssist is closing...")
+            speak("Shutting down DevAssist.")
             exit_event.set()
             break
 
+    # Stop all input threads before exiting
+    voice_thread.join()
+    text_thread.join()
+
 def capture_text_input():
-    """Captures text input without blocking voice input."""
-    user_input = input("Enter command: ").strip().lower()
-    input_queue.put(user_input)
+    """Captures text input and pauses voice recognition while typing."""
+    global stop_speech
+    while not exit_event.is_set():
+        user_input = input("[Type Command]: ").strip().lower()
+        if user_input:
+            stop_speech.set()  # Pause speech recognition
+            input_queue.put(user_input)
+            stop_speech.clear()  # Resume speech recognition after typing is done
 
 def capture_voice_input(recognizer):
-    """Captures voice input without blocking text input."""
-    with sr.Microphone() as source:
-        try:
-            stop_speech.set()  # Stop assistant speech immediately if user starts talking
+    """Captures voice input and adds it to the input queue."""
+    max_retries = 3  # Max retries before skipping
+    
+    while not exit_event.is_set():
+        retries = 0
+        with sr.Microphone() as source:
             recognizer.adjust_for_ambient_noise(source, duration=1)
-            audio = recognizer.listen(source)
-            command = recognizer.recognize_google(audio).lower()
-            print(f"Recognized Voice Input: {command}")
-            input_queue.put(command)
-        except sr.UnknownValueError:
-            print("Sorry, could not understand the audio.")
-            speak("Sorry, could not understand the audio.")
-        except sr.RequestError:
-            print("Could not request results from Google STT.")
-            speak("Could not request results from Google STT.")
+            recognizer.dynamic_energy_threshold = True  # Auto adjust for background noise
 
-def process_command(command):
-    """Processes the user command and speaks the response."""
-    response = f"Executing command: {command}"  # Dummy processing
-    print(response)
-    speak(response)
+            while retries < max_retries:
+                try:
+                    if stop_speech.is_set():
+                        continue  # Skip if typing is happening
 
-# Multi-Threading Implementation
+                    print("[Listening for voice input]...")
+                    audio = recognizer.listen(source, timeout=5)
+
+                    command = recognizer.recognize_google(audio).lower()
+                    print(f"[Recognized Voice Input]: {command}")
+                    input_queue.put(command)
+                    break  # Successfully recognized, break retry loop
+
+                except sr.UnknownValueError:
+                    print(f"[Error]: Could not understand speech. Retry {retries + 1}/{max_retries}")
+                    speak("Sorry, I could not understand that.")
+                    retries += 1
+                except sr.RequestError:
+                    print("[Error]: Speech recognition service unavailable.")
+                    speak("Speech recognition service unavailable.")
+                    break  # Don't retry if service is down
+                except sr.WaitTimeoutError:
+                    print("[Timeout]: No speech detected.")
+                    break  # Stop retrying if no input is detected
+
 if __name__ == "__main__":
-    # Thread 1: Dedicated Speech Thread
+    print("[Starting DevAssist]: AI-powered coding assistant for blind developers.")
+
+    # Start the speech worker in a separate thread
     speech_thread = threading.Thread(target=speech_worker, daemon=True)
     speech_thread.start()
 
-    # Thread 2: Wake Word Listener
-    wake_word_thread = threading.Thread(target=listen_for_wake_word, daemon=True)
-    wake_word_thread.start()
+    # Listen for wake word before processing commands
+    listen_for_wake_word()
 
-    # Keep the main program running
-    wake_word_thread.join()
+    # Ensure threads stay alive
     speech_thread.join()
