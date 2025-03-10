@@ -18,3 +18,13 @@ def configure_api():
         print("Google Generative AI API configured successfully.")
     except Exception as e:
         raise RuntimeError(f"Failed to configure Generative AI API: {e}")
+
+def close_api_connection():
+    """
+    Closes the API connection to Gemini when the program exits.
+    """
+    try:
+        genai.close()  # Assuming there's a close method or cleanup process for the API
+        print("Gemini API connection closed successfully.")
+    except Exception as e:
+        print(f"Failed to close Gemini API connection: {e}")
