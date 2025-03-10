@@ -33,7 +33,7 @@ def classify_query(user_input):
     - "debugging": When the query includes an error message and requires debugging.
     - "file_query": When the user queries about a specific file's content.
 
-    Additionally, extract necessary fields under "requires":
+    Additionally, extract necessary fields under "requires"(only it is must for debugging for example when the command is about push changes to git then git status is required to generate the commit message needed on execution but git push command is not needed in required) based on the query type:
     - `"question": "<question to ask the user>"` → If clarification is needed.
     - `"command": "<command to execute>"` → If a terminal command should be run.
     - `"error_analysis": "<steps to diagnose and fix the issue>"` → If debugging, analyze and suggest steps to resolve.
