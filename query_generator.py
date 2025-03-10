@@ -41,7 +41,16 @@ def classify_query(user_input):
     - `"installed_packages": "<package_name>"` → If the error is related to missing dependencies.
     - `"system_info": "<system_detail>"` → If debugging requires OS, Python version, etc.
     - `"db_schema": "<table_name>"` → If the issue is related to a database query.
-
+ ### **Examples**:
+    - **command**: `"push changes to git"`
+      ```json
+      {{
+          "class": "terminal_command",
+          "requires": {{
+                "command": "git status"
+          }}
+      }}
+      ```
     ### **Debugging-Specific Handling**:
     If the query contains an error:
     1. Identify the root cause.
