@@ -3,6 +3,7 @@ import speech_recognition as sr
 import queue
 import time
 from command_processor import process_command
+from utils import speak
 
 
 
@@ -28,16 +29,17 @@ def listen_for_voice_command():
             with microphone as source:
                 recognizer.adjust_for_ambient_noise(source)  # Adjust for ambient noise
                 try:
-                    print("Listening for wake word...")
+                    #print("Listening for wake word...")
                     audio = recognizer.listen(source)  # Timeout for wake word detection
                     voice_command = recognizer.recognize_google(audio).lower()
-                    print(f"Voice command received: {voice_command}")
+                    #print(f"Voice command received: {voice_command}")
                     if wake_word in voice_command:
-                        print("Wake word detected. Listening for command...")
-                        audio = recognizer.listen(source)  # Timeout for command
+                        print("Yes, I'm listening....")
+                        speak("Yes, I'm listening.")
+                        audio = recognizer.listen(source) 
                         voice_command = recognizer.recognize_google(audio).lower()
                         print(f"Command received: {voice_command}")
-                        input_queue.put(("voice", voice_command))  # Put command in queue
+                        input_queue.put(("voice", voice_command)) # Put command in queue
                 except sr.WaitTimeoutError:
                     print("No voice input detected within the timeout period.")
                 except sr.UnknownValueError:
@@ -68,7 +70,7 @@ def input_dual():
     keyboard_thread.start()
 
     # Wait for the first input from either thread
-    print("Waiting for input... (You can say 'Listen Assistant' or type a command.)")
+    print(">> (You can say 'Listen Assistant' or type a command.)")
     
     while True:
         if not input_queue.empty():

@@ -36,7 +36,7 @@ def process_response(classification_result, gemini_response):
             command_text = cmd["command"]
             description = cmd["description"]
             steps.append(f"Executing: {command_text} - {description}")
-            speak(f"Executing: {command_text} - {description}")
+            speak(f"Executing: {command_text} for {description}")
             output = execute_command(command_text)
             print(f"Output:\n{output}")
             command_outputs.append({"command": command_text, "output": output})
@@ -46,7 +46,6 @@ def process_response(classification_result, gemini_response):
         suggestions = gemini_response.get("debugging_suggestions", {})
         steps.append("Processing debugging request.")
         speak("Processing debugging request. Providing suggestions.")
-        print("#" * 10)
         print(f"Debugging Suggestions: {suggestions}")
         interactive_debugging(suggestions)
 

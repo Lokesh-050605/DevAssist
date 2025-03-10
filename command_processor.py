@@ -9,21 +9,23 @@ def process_command(user_input):
     """Processes user commands and provides appropriate responses."""
     # Classify the query
     classification_result = classify_query(user_input)
-    print("Classification Result: \n", json.dumps(classification_result, indent=4))
+    #print("Classification Result: \n", json.dumps(classification_result, indent=4))
     
     # Announce the classification to the user
-    speak("Query classified.")
+    speak(classification_result["class"] + " type query.")
+    print("Classification:", classification_result["class"])
     
     # Query Gemini for a response based on the classification
     gemini_response = query_gemini(user_input, classification_result)
-    print("Gemini Response: \n", gemini_response)
+    #print("Gemini Response: \n", gemini_response)
     
     # Parse the response from Gemini
     parsed_response = response_parser(gemini_response, classification_result)
-    print("Parsed Response: \n", json.dumps(parsed_response, indent=4))
+    #print("Parsed Response: \n", json.dumps(parsed_response, indent=4))
     
     # Announce that the command is being processed
-    speak("Processing command.")
+    speak("Processing command...")
+    print("Processing command...")
     
     # Process the final response
     process_response(classification_result, parsed_response)
