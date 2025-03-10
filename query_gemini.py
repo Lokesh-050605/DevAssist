@@ -11,6 +11,8 @@ def query_gemini(user_input,classification_result):
     
     # Step 2: Generate the structured query for Gemini
     formatted_prompt = generate_query(user_input, classification_result)
+
+    print(f"Formatted Prompt: {formatted_prompt}")
     
     if formatted_prompt.startswith("{\"error\""):
         return json.loads(formatted_prompt)  # Return error response directly
