@@ -37,6 +37,7 @@ def process_response(classification_result, gemini_response):
             description = cmd["description"]
             steps.append(f"Executing: {command_text} - {description}")
             speak(f"Executing: {command_text} for {description}")
+            print(f"Executing: {command_text} - {description}")
             output = execute_command(command_text)
             print(f"Output:\n{output}")
             command_outputs.append({"command": command_text, "output": output})

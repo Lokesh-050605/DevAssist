@@ -12,7 +12,7 @@ def query_gemini(user_input,classification_result):
     # Step 2: Generate the structured query for Gemini
     formatted_prompt = generate_query(user_input, classification_result)
 
-    print(f"Formatted Prompt: {formatted_prompt}")
+    #print(f"Formatted Prompt: {formatted_prompt}")
     
     if formatted_prompt.startswith("{\"error\""):
         return json.loads(formatted_prompt)  # Return error response directly
@@ -26,8 +26,8 @@ def query_gemini(user_input,classification_result):
 def response_parser(response, classification):
     """Parses the response from Gemini based on the classification result."""
 
-    print(f"Response: {response}")
-    print(f"Classification: {classification}")
+    # print(f"Response: {response}")
+    # print(f"Classification: {classification}")
 
     try:
         # Extract text response
