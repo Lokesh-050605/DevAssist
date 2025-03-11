@@ -132,7 +132,7 @@ def classify_query(user_input):
 def generate_query(user_input, classification_result):
     """Generates a structured query based on the classification result, either by asking the user for missing input or executing a command."""
 
-    user_config = load_user_config()  # Load user configuration
+    user_config = load_user_config() 
     query_class = classification_result.get("class", "None")
     required = classification_result.get("requires", {})
     os_name = user_config.get("os", "Windows 10")
@@ -140,7 +140,7 @@ def generate_query(user_input, classification_result):
     # Handle missing input by asking the user
     if "question" in required:
         required_value = input(f"{required['question']} ")  # Ask user
-        required["user_response"] = required_value  # Store user response
+        required["user_response"] = required_value 
 
     # Execute required command and capture output
     if "command" in required:

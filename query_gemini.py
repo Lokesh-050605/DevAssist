@@ -26,9 +26,6 @@ def query_gemini(user_input,classification_result):
 def response_parser(response, classification):
     """Parses the response from Gemini based on the classification result."""
 
-    # print(f"Response: {response}")
-    # print(f"Classification: {classification}")
-
     try:
         # Extract text response
         response_text = response.text

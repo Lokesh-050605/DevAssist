@@ -1,0 +1,29 @@
+{
+    "user_profile": {
+        "name": "UserName",
+        "preferred_language": "en",
+        "timezone": "Asia/Kolkata"
+    },
+    "system_info": {
+        "os": "Windows",
+        "os_version": "Windows 10 Pro",
+        "architecture": "x86_64",
+        "cpu_cores": 8,
+        "ram_gb": 16,
+        "shell": "powershell.exe",
+        "python_version": "3.10"
+    },
+    "voice_assistance": {
+        "enabled": true,
+        "wake_word": "Listen Assistant",
+        "voice": "en-US"
+    },
+    "debugging": {
+        "enable_suggestions": true,
+        "auto_fix": false
+    },
+    "command_execution": {
+        "confirm_before_execution": true,
+        "log_commands": true
+    }
+}
