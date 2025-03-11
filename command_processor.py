@@ -8,6 +8,7 @@ def process_command(user_input):
     """Processes user commands and provides appropriate responses."""
     
     classification_result = classify_query(user_input)
+    print("Classification Result:", classification_result)
     speak(f"{classification_result['class']} type query.")
     
     gemini_response = query_gemini(user_input, classification_result)
