@@ -43,7 +43,8 @@ def listen_for_voice_command():
                 except sr.WaitTimeoutError:
                     print("No voice input detected within the timeout period.")
                 except sr.UnknownValueError:
-                    print("Sorry, I did not understand that.")
+                    print("")
+
                 except sr.RequestError as e:
                     print(f"Could not request results; {e}")
           # Small delay to avoid busy-waiting
