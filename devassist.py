@@ -46,7 +46,7 @@ def listen_for_voice_command():
                     print("Sorry, I did not understand that.")
                 except sr.RequestError as e:
                     print(f"Could not request results; {e}")
-        time.sleep(0.1)  # Small delay to avoid busy-waiting
+          # Small delay to avoid busy-waiting
 
 def listen_for_keyboard_input():
     """Listens for keyboard input and puts it into the queue."""
