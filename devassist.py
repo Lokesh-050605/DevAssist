@@ -1,110 +1,115 @@
 import threading
 import speech_recognition as sr
 import queue
-import time
 from command_processor import process_command
-from utils import speak
+from utils import speak, stop_speaking
 
-
-
-wake_word = "listen assistant"  # Define the wake-up word
+wake_word = "listen assistant"
 recognizer = sr.Recognizer()
 microphone = sr.Microphone()
 
 # Queue for communication between threads
 input_queue = queue.Queue()
 
-# Lock to manage microphone access
-mic_lock = threading.Lock()
-
-# Flags to control the threads
-voice_thread_active = True
-keyboard_thread_active = True
+# Events to control threads
+stop_event = threading.Event()
+pause_listening_event = threading.Event()
 
 def listen_for_voice_command():
-    """Listens for the voice command after detecting the wake word."""
-    global voice_thread_active
-    while voice_thread_active:
-        with mic_lock:  # Lock the microphone resource
+    """Continuously listens for wake word and subsequent commands."""
+    while not stop_event.is_set():
+        if not pause_listening_event.is_set():
+            print("Opening microphone...")
             with microphone as source:
-                recognizer.adjust_for_ambient_noise(source)  # Adjust for ambient noise
+                recognizer.adjust_for_ambient_noise(source, duration=2)
+                print("Listening for wake word...")
                 try:
-                    #print("Listening for wake word...")
-                    audio = recognizer.listen(source)  # Timeout for wake word detection
-                    voice_command = recognizer.recognize_google(audio).lower()
-                    #print(f"Voice command received: {voice_command}")
-                    if wake_word in voice_command:
-                        print("Yes, I'm listening....")
-                        speak("Yes, I'm listening.")
-                        audio = recognizer.listen(source) 
-                        voice_command = recognizer.recognize_google(audio).lower()
-                        print(f"Command received: {voice_command}")
-                        input_queue.put(("voice", voice_command)) # Put command in queue
+                    audio = recognizer.listen(source, timeout=5)
+                    voice_input = recognizer.recognize_google(audio).lower()
+                    print(f"Detected: {voice_input}")
+                    if wake_word in voice_input:
+                        speak("Yes, I'm listening...")
+                        print("Yes, I'm listening...")
+                        print("Adjusting for command...")
+                        recognizer.adjust_for_ambient_noise(source, duration=1)
+                        print("Listening for command...")
+                        audio = recognizer.listen(source, timeout=10)
+                        command = recognizer.recognize_google(audio).lower()
+                        print(f"Voice command received: {command}")
+                        input_queue.put(("voice", command))
                 except sr.WaitTimeoutError:
-                    print("No voice input detected within the timeout period.")
+                    print("Timeout waiting for wake word")
+                    continue
                 except sr.UnknownValueError:
-                    print("")
-
+                    speak("Sorry, I didn’t catch that.")
+                    print("Couldn’t understand audio.")
                 except sr.RequestError as e:
-                    print(f"Could not request results; {e}")
-          # Small delay to avoid busy-waiting
+                    speak("There’s an issue with the speech service.")
+                    print(f"Speech service error: {e}")
+                except Exception as e:
+                    print(f"Unexpected error: {e}")
+                    speak("Something went wrong, please try again.")
+        else:
+            threading.Event().wait(0.1)
 
 def listen_for_keyboard_input():
-    """Listens for keyboard input and puts it into the queue."""
-    global keyboard_thread_active
-    try:
-        while keyboard_thread_active:
-            cmd = input(">> ")
-            input_queue.put(("keyboard", cmd))  # Put command in queue
-    except EOFError:
-        print("Keyboard input closed.")
+    """Listens for keyboard input in a non-blocking way."""
+    while not stop_event.is_set():
+        if not pause_listening_event.is_set():
+            try:
+                cmd = input(">> ")
+                if cmd.strip():
+                    print(f"Keyboard command received: {cmd}")
+                    input_queue.put(("keyboard", cmd))
+            except EOFError:
+                print("Keyboard input closed.")
+                break
+        else:
+            threading.Event().wait(0.1)
 
-def input_dual():
-    """Handles both voice and keyboard input in parallel."""
-    global voice_thread_active, keyboard_thread_active
-
-    # Start the voice and keyboard threads
+def process_inputs():
+    """Processes inputs from the queue and manages listening state."""
     voice_thread = threading.Thread(target=listen_for_voice_command, daemon=True)
     keyboard_thread = threading.Thread(target=listen_for_keyboard_input, daemon=True)
-    
+
     voice_thread.start()
     keyboard_thread.start()
 
-    # Wait for the first input from either thread
-    print(">> (You can say 'Listen Assistant' or type a command.)")
-    
-    while True:
-        if not input_queue.empty():
-            input_type, cmd = input_queue.get()
-            input_queue.queue.clear()  # Clear the queue after processing
-            print(f"Received {input_type} input: {cmd}")
+    print(">> (Say 'Listen Assistant' or type a command, press Enter to submit.)")
 
-            # Signal threads to stop
-            voice_thread_active = False
-            keyboard_thread_active = False
-
-            # Allow threads to finish gracefully
-            voice_thread.join(timeout=1)  # Wait for the voice thread to release the lock
-            keyboard_thread.join(timeout=1)  # Wait for the keyboard thread to finish
-
-            return cmd
+    while not stop_event.is_set():
+        try:
+            input_type, cmd = input_queue.get(timeout=1)
+            print(f"Processing {input_type} input: {cmd}")
+            
+            # Pause listening while processing
+            pause_listening_event.set()
+            speak("Processing your command...")
+            
+            if cmd.lower() == "exit":
+                stop_event.set()
+                speak("Goodbye.")
+                print("Exiting program...")
+                break
+            
+            process_command(cmd)
+            speak("Command completed.")
+            
+            # Resume listening after processing
+            pause_listening_event.clear()
+            print(">> Listening again...")
+            
+            input_queue.task_done()
+        except queue.Empty:
+            continue
 
 def main():
-    """Main entry point for the program to process user commands."""
-    global voice_thread_active, keyboard_thread_active
-    while True:
-        # Reset flags for the next cycle
-        voice_thread_active = True
-        keyboard_thread_active = True
-
-        # Get input either from voice or keyboard
-        cmd = input_dual()
-
-        if cmd.lower() == "exit":
-            print("Exiting program...")
-            break
-
-        process_command(cmd)  # Process the received command
+    """Main entry point."""
+    try:
+        process_inputs()
+    finally:
+        stop_event.set()
+        stop_speaking()  # Cleanly stop TTS engine
 
 if __name__ == "__main__":
     main()
