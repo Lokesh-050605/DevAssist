@@ -47,7 +47,7 @@ def classify_query(user_input):
     Return strict JSON, no extra text.
     '''
 
-    model = genai.GenerativeModel("gemini-1.5-pro")
+    model = genai.GenerativeModel("gemini-1.5-flash")
     try:
         response = model.generate_content(classification_prompt)
         if response and hasattr(response, 'text') and response.text:

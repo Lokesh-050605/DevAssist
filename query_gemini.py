@@ -1,97 +1,74 @@
-#query_gemini.py
 import google.generativeai as genai
 import json
+import time
 from query_generator import classify_query, generate_query
 
+last_request_time = 0
+min_interval = 4  # 4 sec delay for 15 RPM (Flash)
 
-def query_gemini(user_input,classification_result):
-    """Classifies the query, generates a structured prompt, and fetches Gemini's response."""
+def query_gemini(user_input, classification_result):
+    global last_request_time
+    current_time = time.time()
+    time_since_last = current_time - last_request_time
+    
+    if time_since_last < min_interval:
+        delay = min_interval - time_since_last
+        print(f"Rate limit: Waiting {delay:.2f} seconds before next API call...")
+        time.sleep(delay)
     
     if "error" in classification_result:
         return {"error": "Failed to classify query."}
     
-    # Step 2: Generate the structured query for Gemini
     formatted_prompt = generate_query(user_input, classification_result)
-
-    #print(f"Formatted Prompt: {formatted_prompt}")
     
     if formatted_prompt.startswith("{\"error\""):
-        return json.loads(formatted_prompt)  # Return error response directly
+        return json.loads(formatted_prompt)
 
-    # Step 3: Send request to Gemini API
-    model = genai.GenerativeModel("gemini-1.5-pro")
-    response = model.generate_content(formatted_prompt)
-
-    return response
+    model = genai.GenerativeModel("gemini-1.5-flash")
+    try:
+        if classification_result["class"] == "terminal_command":
+            formatted_prompt += "\nReturn response in strict JSON format: {\"commands\": [...]}. If multiple commands, provide in order."
+        elif classification_result["class"] == "debugging":
+            formatted_prompt += "\nReturn response in strict JSON format: {\"error_category\": \"<category>\", \"probable_causes\": [], \"step_by_step_fix\": [], \"suggested_fix\": \"\", \"auto_fix_command\": \"\"}"
+        
+        response = model.generate_content(formatted_prompt)
+        last_request_time = time.time()
+        return response
+    except Exception as e:
+        print(f"Gemini API error: {e}")
+        return None
 
 def response_parser(response, classification):
-    """Parses the response from Gemini based on the classification result."""
-
     try:
-        # Extract text response
-        response_text = response.text
+        if not hasattr(response, 'text') or not response.text:
+            return {"error": "No valid response from Gemini"}
+        response_text = response.text.strip('```json\n').strip('```')
 
-        # Process classification type
         query_class = classification.get("class", "None")
 
         if query_class == "general_query":
             return {"general_response": response_text}
 
         elif query_class == "terminal_command":
-            try:
-                response_text = response_text.strip('```json\n').strip('```')  # Handle incorrect formatting
-                parsed_response = json.loads(response_text)
-                if isinstance(parsed_response, dict) and "commands" in parsed_response:
-                    return {"commands": parsed_response["commands"]}
-            except json.JSONDecodeError:
-                return {"error": "Invalid JSON format in terminal command response."}
+            return {"commands": json.loads(response_text)["commands"]}
 
         elif query_class == "debugging":
             try:
-                # Strip potential markdown formatting
-                response_text = response_text.strip('```json\n').strip('```')
-
-                # Parse JSON
                 parsed_response = json.loads(response_text)
-
-                # Extract debugging details
-                return{
-                    "debugging_suggestions":{
-                "error_category": parsed_response.get("error_category", "Unknown"),
-                "probable_causes": parsed_response.get("probable_causes", []),
-                "step_by_step_fix": parsed_response.get("step_by_step_fix", []),
-                "suggested_fix": parsed_response.get("suggested_fix", ""),
-                "auto_fix_command": parsed_response.get("auto_fix_command", ""),
-                "alternative_solutions": parsed_response.get("alternative_solutions", []),
-                "preventive_measures": parsed_response.get("preventive_measures", [])
+                suggestions = {
+                    "error_category": parsed_response.get("error_category", "Unknown"),
+                    "probable_causes": parsed_response.get("probable_causes", []),
+                    "step_by_step_fix": parsed_response.get("step_by_step_fix", []),
+                    "suggested_fix": parsed_response.get("suggested_fix", ""),
+                    "auto_fix_command": parsed_response.get("auto_fix_command", "")
                 }
-                } 
-
-
+                if not any(suggestions.values()):
+                    return {"error": "Incomplete debugging response", "raw_text": response_text}
+                return {"debugging_suggestions": suggestions}
             except json.JSONDecodeError:
-                return {"error": "Invalid JSON format in debugging response."}
+                return {"error": "Invalid JSON format in debugging response", "raw_text": response_text}
 
-        elif query_class == "file_query":
-            try:
-                parsed_response = json.loads(response_text)
-                return {
-                    "file_name": parsed_response.get("file_name", ""),
-                    "file_content": parsed_response.get("file_content", "File content not provided.")
-                }
-            except json.JSONDecodeError:
-                return {"error": "Invalid JSON format in file query response."}
+        return {"error": f"Unknown query classification: {query_class}"}
 
-        else:
-            return {"error": f"Unknown query classification: {query_class}"}
-
-    except (IndexError, AttributeError) as e:
+    except (json.JSONDecodeError, AttributeError) as e:
         return {"error": f"Parsing error: {str(e)}"}
-
-# # Example usage
-# user_input = '''unknown option --v
-# usage: C:\\Users\\lokes\\AppData\\Local\\Programs\\Python\\Python312\\python.exe [option] ... [-c cmd | -m mod | file | -] [arg] ...        
-# Try `python -h' for more information.'''
-# classification_result = classify_query(user_input)
-# result = query_gemini(user_input, classification_result)
-# parsed_result = response_parser(result, classification_result)
-# print(parsed_result)

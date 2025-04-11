@@ -1,75 +1,82 @@
-from query_generator import execute_command
 from utils import speak
+import subprocess
 
-def interactive_debugging(debug_data):
-    """Guides the user through the debugging process interactively."""
+def interactive_debugging(suggestions):
+    """Interactively guide the user through debugging suggestions."""
+    error_category = suggestions.get("error_category", "Unknown")
+    probable_causes = suggestions.get("probable_causes", [])
+    step_by_step_fix = suggestions.get("step_by_step_fix", [])
+    suggested_fix = suggestions.get("suggested_fix", "")
+    auto_fix_command = suggestions.get("auto_fix_command", "")
     
-    # Speech Output
-    speak("Debugging Assistant Activated")
-    print("\n Debugging Assistant ")
-    
-    # Display Error Category
-    error_type = debug_data.get("error_category", "Unknown Error")
-    print(f" Error Type: {error_type}\n")
-    speak(f"Error detected: {error_type}")
+    print(f"Debugging Error: {error_category}")
+    speak(f"Debugging error: {error_category}")
 
-    # Show probable causes
-    probable_causes = debug_data.get("probable_causes", [])
     if probable_causes:
-        print(" Possible Causes:")
-        speak("Possible causes include the following:")
-        for cause in probable_causes:
-            print(f" - {cause}")
-        speak("Would you like me to read them out loud? (yes/no)")
-        if input("Read causes out loud? (yes/no): ").strip().lower() == "yes":
-            for cause in probable_causes:
-                speak(cause)
+        print("Probable Causes:")
+        speak("Here are the probable causes:")
+        for i, cause in enumerate(probable_causes, 1):
+            print(f"{i}. {cause}")
+            speak(f"{i}. {cause}")
 
-    # If there's a direct fix, suggest it first
-    auto_fix = debug_data.get("auto_fix_command")
-    if auto_fix:
-        print(f"\n Suggested Fix: Run `{auto_fix}`")
-        speak("A direct fix is available. Would you like to apply it?")
-        execute_fix = input(f"Would you like to run: `{auto_fix}`? (yes/no): ").strip().lower()
-        if execute_fix == "yes":
-            op = execute_command(auto_fix)
-            if op:
-                print("\n Fix applied successfully! \n" + op)
-                speak("Fix applied successfully.")
-                return
-            else:
-                print("\n Failed to execute the fix. Error:")
-                print(op)  # Display exact error message
-                speak("Fix execution failed. Try running it manually.")
-
-    # Step-by-step debugging
-    step_by_step_fix = debug_data.get("step_by_step_fix", [])
     if step_by_step_fix:
-        print("\n🛠 Let's fix this step by step!")
-        for step in step_by_step_fix:
-            response = input(f"\n{step} (yes/no/skip all): ").strip().lower()
-            if response == "yes":
-                continue  # Move to the next step
-            elif response == "skip all":
-                print("Skipping all steps.")
-                break
-            else:
+        print("Step-by-Step Fix:")
+        speak("Here’s a step-by-step fix:")
+        for i, step in enumerate(step_by_step_fix, 1):
+            print(f"Step {i}: {step}")
+            speak(f"Step {i}: {step}")
+            response = input("Would you like to proceed with this step? (yes/no): ").lower()
+            if response != "yes":
+                speak("Skipping this step.")
                 print("Skipping this step.")
-                continue  # Continue allowing other steps
+                break
 
-    # Alternative solutions
-    alternative_solutions = debug_data.get("alternative_solutions", [])
-    if alternative_solutions:
-        print("\n Alternative Solutions:")
-        for alt in alternative_solutions:
-            print(f" - {alt}")
+    if suggested_fix:
+        print(f"Suggested Fix: {suggested_fix}")
+        speak(f"Suggested fix: {suggested_fix}")
+        response = input("Would you like to apply this fix? (yes/no): ").lower()
+        if response == "yes":
+            speak("Applying the suggested fix.")
+            print("Applying fix...")
+            if auto_fix_command:  # Execute the auto-fix command if provided
+                try:
+                    result = subprocess.run(auto_fix_command, shell=True, text=True, capture_output=True)
+                    if result.returncode == 0:
+                        speak("Fix applied successfully.")
+                        print(f"Fix output: {result.stdout}")
+                        return {"applied_fix": suggested_fix, "auto_fix_output": result.stdout}
+                    else:
+                        speak("Failed to apply fix.")
+                        print(f"Fix error: {result.stderr}")
+                        return {"applied_fix": suggested_fix, "error": result.stderr}
+                except Exception as e:
+                    speak("Error while applying fix.")
+                    print(f"Error applying fix: {str(e)}")
+                    return {"applied_fix": suggested_fix, "error": str(e)}
+            return {"applied_fix": suggested_fix}
+        else:
+            speak("Fix not applied.")
+            print("Fix not applied.")
 
-    # Preventive measures
-    preventive_measures = debug_data.get("preventive_measures", [])
-    if preventive_measures:
-        print("\n Best Practices to Avoid This Issue in the Future:")
-        for measure in preventive_measures:
-            print(f" - {measure}")
+    if auto_fix_command and not suggested_fix:  # Fallback if only auto_fix_command is provided
+        print(f"Auto-Fix Command: {auto_fix_command}")
+        speak(f"I can run this command to fix it: {auto_fix_command}")
+        response = input("Run auto-fix command? (yes/no): ").lower()
+        if response == "yes":
+            try:
+                result = subprocess.run(auto_fix_command, shell=True, text=True, capture_output=True)
+                if result.returncode == 0:
+                    speak("Auto-fix applied successfully.")
+                    print(f"Auto-fix output: {result.stdout}")
+                    return {"auto_fix_applied": auto_fix_command, "output": result.stdout}
+                else:
+                    speak("Auto-fix failed.")
+                    print(f"Auto-fix error: {result.stderr}")
+                    return {"auto_fix_failed": auto_fix_command, "error": result.stderr}
+            except Exception as e:
+                speak("Error while applying auto-fix.")
+                print(f"Error applying auto-fix: {str(e)}")
+                return {"auto_fix_failed": auto_fix_command, "error": str(e)}
 
-    print("\nDebugging session complete! Let me know if you need more help.\n")
-    speak("Debugging complete. Let me know if you need more help.")
+    speak("Debugging complete. No fixes applied.")
+    return {"status": "no_fixes_applied"}

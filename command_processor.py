@@ -6,8 +6,6 @@ from query_generator import classify_query
 from query_gemini import query_gemini, response_parser
 
 def process_command(user_input):
-    """Processes user commands and provides appropriate responses."""
-    
     classification_result = classify_query(user_input)
     if not classification_result or "class" not in classification_result:
         print("Error: Classification failed.")
@@ -23,12 +21,14 @@ def process_command(user_input):
     speak(f"{classification_result['class']} type query.")
     
     gemini_response = query_gemini(user_input, classification_result)
+    print(f"Gemini Response: {gemini_response}")  # Debug
     if gemini_response is None:
         print("Error: No response from Gemini.")
         speak("Sorry, I couldn’t get a response from the assistant.")
         return "Error: No Gemini response"
     
     parsed_response = response_parser(gemini_response, classification_result)
+    print(f"Parsed Response: {parsed_response}")  # Debug
     if parsed_response is None:
         print("Error: Failed to parse Gemini response.")
         speak("An error occurred while processing your command.")

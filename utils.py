@@ -1,43 +1,36 @@
 import json
 import pyttsx3
 import subprocess
-import logging
+import threading
 
-# Setup logging
-# logging.basicConfig(level=logging.DEBUG)
-# logger = logging.getLogger(__name__)
-
-engine = pyttsx3.init()
-engine.startLoop(False)  # Non-blocking mode
+# Thread-safe engine initialization
+engine_lock = threading.Lock()
 
 def speak(text):
-    """Speaks the given text in non-blocking mode."""
-    # logger.debug(f"Speaking: {text}")
-    try:
+    """Synchronously speak the given text with thread-safe engine."""
+    print(f"Speaking: {text}")
+    with engine_lock:
+        engine = pyttsx3.init()  # Fresh engine instance per call
         engine.say(text)
-        # logger.debug("Text queued for speaking")
-        engine.iterate()  # Process in main loop
-        # logger.debug("Text spoken successfully")
-    except Exception as e:
-        print(f"Error speaking: {e}")
+        engine.runAndWait()
 
 def stop_speaking():
-    """Stops the TTS engine cleanly."""
-    engine.endLoop()
+    """Stop any ongoing speech."""
+    with engine_lock:
+        engine = pyttsx3.init()
+        engine.stop()
 
 def execute_command(command):
-    """Executes a terminal command and returns its output."""
     try:
         result = subprocess.run(command, shell=True, text=True, capture_output=True)
         if result.returncode == 0:
-            return result.stdout.strip()
+            return {"success": True, "output": result.stdout.strip()}
         else:
-            return f"Error: {result.stderr.strip()}"
+            return {"success": False, "error": result.stderr.strip(), "command": command}
     except Exception as e:
-        return f"Execution failed: {str(e)}"
+        return {"success": False, "error": f"Execution failed: {str(e)}", "command": command}
 
 def load_user_config(filepath="user_config.json"):
-    """Loads user configuration from a JSON file."""
     try:
         with open(filepath, "r") as f:
             return json.load(f)
