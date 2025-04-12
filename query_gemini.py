@@ -1,7 +1,7 @@
 import google.generativeai as genai
 import json
 import time
-from query_generator import classify_query, generate_query
+from query_generator import generate_query
 
 last_request_time = 0
 min_interval = 4  # 4 sec delay for 15 RPM (Flash)
@@ -15,7 +15,7 @@ def query_gemini(user_input, classification_result):
         delay = min_interval - time_since_last
         print(f"Rate limit: Waiting {delay:.2f} seconds before next API call...")
         time.sleep(delay)
-    
+
     if "error" in classification_result:
         return {"error": "Failed to classify query."}
     
@@ -27,13 +27,35 @@ def query_gemini(user_input, classification_result):
     model = genai.GenerativeModel("gemini-1.5-flash")
     try:
         if classification_result["class"] == "terminal_command":
-            formatted_prompt += "\nReturn response in strict JSON format: {\"commands\": [...]}. If multiple commands, provide in order."
+            formatted_prompt += (
+                "\nReturn response in strict JSON format: "
+                "{\"commands\": [{\"command\": \"<cmd>\", \"description\": \"<desc>\"}]}. "
+                "If the task requires multiple sequential commands (e.g., git push), "
+                "provide them in the correct order as an array."
+                "give commands with -y flag if needed. "
+                "use the information gathered by required to generate the command. "
+                "example for commit commmand give commit message based on the changes made gathered by git status in required"
+            )
+
         elif classification_result["class"] == "debugging":
-            formatted_prompt += "\nReturn response in strict JSON format: {\"error_category\": \"<category>\", \"probable_causes\": [], \"step_by_step_fix\": [], \"suggested_fix\": \"\", \"auto_fix_command\": \"\"}"
-        
+            formatted_prompt += (
+                "\nReturn the response in this exact JSON format:\n"
+                "{\n"
+                "  \"error_category\": \"<category>\",\n"
+                "  \"probable_causes\": [\"cause1\", \"cause2\"],\n"
+                "  \"step_by_step_fix\": [\"step1\", \"step2\"],\n"
+                "  \"suggested_fix\": \"<explanation>\",\n"
+                "  \"auto_fix_command\": \"<only if it is VALID and RELEVANT>\"\n"
+                "}\n"
+                "Include an auto_fix_command ONLY IF it is guaranteed to be effective and safe to run. "
+                "If unsure or if it's risky, leave the field empty. "
+                "Do not return placeholder or made-up commands."
+            )
+
         response = model.generate_content(formatted_prompt)
         last_request_time = time.time()
         return response
+
     except Exception as e:
         print(f"Gemini API error: {e}")
         return None

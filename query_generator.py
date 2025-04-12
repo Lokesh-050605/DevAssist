@@ -31,17 +31,28 @@ def classify_query(user_input):
     - "general_query": General questions (e.g., "What is LLM?").
     - "terminal_command": Terminal commands (e.g., "list files in the current directory").
     - "debugging": Error messages (e.g., "ModuleNotFoundError").
-    - "file_query": File content queries.
+     - "file_query": File operations (e.g., "open test.py", "insert print hi at line 2 in test.py", "find function in test.py", "add code to test.py").
+
 
     OS: {os_name}. Use {os_name}-compatible commands only (e.g., "dir" not "ls").
-    "requires" should only include prerequisites (e.g., "git status" for "push changes to git", not "git push").
+    "requires" should include only safe information-gathering prerequisites (e.g., "git status", "pip show <pkg>", not install/modify commands).
+
+    
+    - "open <file>" → {{"action": "open", "filename": "<file>"}}
+    - "insert <content> at line <num> in <file>" → {{"action": "insert", "content": "<content>", "line": <num>, "filename": "<file>"}}
+    - "find <target> in <file>" → {{"action": "find", "target": "<target>", "filename": "<file>"}}
+    - "add/append <content> to <file>" → {{"action": "append", "content": "<content>", "filename": "<file>"}}
+
     Return valid JSON: {{"class": "<class>", "requires": {{<fields>}}}}.
     If error, return {{"class": "error", "requires": {{"message": "<reason>"}}}}.
-
     Examples:
     - "list files in the current directory" → {{"class": "terminal_command", "requires": {{}}}}
     - "push changes to git" → {{"class": "terminal_command", "requires": {{"command": "git status"}}}}
-    - "ModuleNotFoundError: No module named 'requests'" → {{"class": "debugging", "requires": {{"command": "pip show requests"}}}}
+    - - "ModuleNotFoundError: No module named 'requests'" → {{"class": "debugging", "requires": {{"check_module": "requests"}}}}
+    - "open test.py" → {{"class": "file_query", "requires": {{"action": "open", "filename": "test.py"}}}}
+    - "insert print hi at line 2 in test.py" → {{"class": "file_query", "requires": {{"action": "insert", "content": "print hi", "line": 2, "filename": "test.py"}}}}
+    - "find function that adds numbers in test.py" → {{"class": "file_query", "requires": {{"action": "find", "target": "function that adds numbers", "filename": "test.py"}}}}
+    - "run" → {{"class": "terminal_command"}}
     
     Query: "{user_input}"
     Return strict JSON, no extra text.
@@ -94,6 +105,15 @@ def generate_query(user_input, classification_result):
     if "file_content" in required:
         required["file_name"] = required["file_content"]
         required["file_content"] = extract_file_content(required["file_content"])
+    
+    if "check_module" in required:
+        module = required["check_module"]
+        try:
+            output = subprocess.check_output(f"pip show {module}", shell=True, text=True).strip()
+            required["module_info"] = output or f"Module '{module}' not found"
+        except subprocess.CalledProcessError as e:
+            required["module_info"] = f"Module '{module}' not found"
+
 
     if query_class == "general_query":
         return user_input + " Provide a concise answer (2-3 sentences) for a visually impaired developer."
@@ -109,5 +129,13 @@ def generate_query(user_input, classification_result):
     elif query_class == "debugging":
         return json.dumps({"instruction": "Debug this", "input": user_input, "requires": required})
     elif query_class == "file_query":
-        return json.dumps({"instruction": "Analyze file", "input": user_input, "requires": required})
+        action = required.get("action")
+        if action == "open":
+            return json.dumps({"instruction": f"Open file {required['filename']} in Neovim", "requires": required})
+        elif action == "insert":
+            return json.dumps({"instruction": f"Insert '{required['content']}' at line {required['line']} in {required['filename']}", "requires": required})
+        elif action == "find":
+            return json.dumps({"instruction": f"Find '{required['target']}' in {required['filename']} and return line number", "requires": required})
+        elif action == "append":
+            return json.dumps({"instruction": f"Append '{required['content']}' to {required['filename']}", "requires": required})
     return json.dumps({"error": "Invalid query classification."}, indent=4)
