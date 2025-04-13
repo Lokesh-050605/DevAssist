@@ -1,3 +1,4 @@
+#devassist.py
 import threading
 import speech_recognition as sr
 import queue
@@ -112,6 +113,7 @@ def process_inputs(process_func):
     while not stop_event.is_set():
         try:
             input_type, cmd = input_queue.get()
+            input_type, cmd = input_queue.get()
             print(f"Processing {input_type} input: {cmd}")
 
             speak("Processing your command...")
@@ -119,6 +121,7 @@ def process_inputs(process_func):
             if cmd.lower() == "exit":
                 speak("Goodbye.")
                 print("Exiting program...")
+                nvim_handler.stop_nvim()
                 break
 
             process_func(cmd)

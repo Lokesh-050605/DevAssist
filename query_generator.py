@@ -1,3 +1,4 @@
+# query_generator.py
 import google.generativeai as genai
 import json
 import subprocess
@@ -31,8 +32,7 @@ def classify_query(user_input):
     - "general_query": General questions (e.g., "What is LLM?").
     - "terminal_command": Terminal commands (e.g., "list files in the current directory").
     - "debugging": Error messages (e.g., "ModuleNotFoundError").
-     - "file_query": File operations (e.g., "open test.py", "insert print hi at line 2 in test.py", "find function in test.py", "add code to test.py").
-
+    - "file_query": File operations (e.g., "open test.py", "insert print hi at line 2 in test.py", "find function in test.py", "add code to test.py").
 
     OS: {os_name}. Use {os_name}-compatible commands only (e.g., "dir" not "ls").
     "requires" should include only safe information-gathering prerequisites (e.g., "git status", "pip show <pkg>", not install/modify commands).
@@ -57,6 +57,7 @@ def classify_query(user_input):
     Query: "{user_input}"
     Return strict JSON, no extra text.
     '''
+
 
     model = genai.GenerativeModel("gemini-1.5-flash")
     try:
@@ -129,6 +130,15 @@ def generate_query(user_input, classification_result):
     elif query_class == "debugging":
         return json.dumps({"instruction": "Debug this", "input": user_input, "requires": required})
     elif query_class == "file_query":
+        action = required.get("action")
+        if action == "open":
+            return json.dumps({"instruction": f"Open file {required['filename']} in Neovim", "requires": required})
+        elif action == "insert":
+            return json.dumps({"instruction": f"Insert '{required['content']}' at line {required['line']} in {required['filename']}", "requires": required})
+        elif action == "find":
+            return json.dumps({"instruction": f"Find '{required['target']}' in {required['filename']} and return line number", "requires": required})
+        elif action == "append":
+            return json.dumps({"instruction": f"Append '{required['content']}' to {required['filename']}", "requires": required})
         action = required.get("action")
         if action == "open":
             return json.dumps({"instruction": f"Open file {required['filename']} in Neovim", "requires": required})

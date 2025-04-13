@@ -1,10 +1,12 @@
 import os
 import subprocess
-import re
 from interactive_debug import interactive_debugging
+from nvim_handler import NvimHandler
 from utils import speak
 from query_generator import classify_query
 from query_gemini import query_gemini, response_parser
+
+nvim_handler = NvimHandler()
 
 def process_response(classification_result, gemini_response):
     query_class = classification_result.get("class", "None")
@@ -43,14 +45,52 @@ def process_response(classification_result, gemini_response):
                 speak("An error occurred.")
                 if "No such file or directory" in result["error"]:
                     debug_result = {"suggestion": f"File not found. Please check if '{command_text.split()[-1]}' exists in your directory."}
-                    speak(debug_result["suggestion"])
-                    print(debug_result["suggestion"])
                 else:
                     speak("Starting debug assistant.")
                     debug_result = debug_command_error(result["error"], command_text)
                 command_outputs.append({"command": command_text, "error": result["error"], "debug": debug_result})
                 break
         return {"executed_commands": command_outputs}
+
+    elif query_class == "file_query":
+        requires = classification_result.get("requires", {})
+        action = requires.get("action")
+        filename = requires.get("filename")
+
+        if not filename:
+            speak("No filename provided.")
+            return {"error": "No filename specified"}
+
+        if action == "open":
+            return nvim_handler.open_file(filename)
+
+        elif action == "insert":
+            content = requires.get("content")
+            line = requires.get("line")
+            if not content or not line:
+                speak("Missing content or line number.")
+                return {"error": "Missing content or line number"}
+            return nvim_handler.insert_line(filename, content, line)
+
+        elif action == "find":
+            target = requires.get("target")
+            if not target:
+                speak("No search target provided.")
+                return {"error": "No search target specified"}
+            # Gemini helps find the line
+            file_content = extract_file_content(filename)
+            find_query = f"Find '{target}' in this file content:\n{file_content}\nReturn the line number where it starts as a plain integer."
+            find_classification = classify_query(find_query)
+            find_response = query_gemini(find_query, find_classification)
+            find_parsed = response_parser(find_response, find_classification)
+            return nvim_handler.find_in_file(filename, target, find_parsed)
+
+        elif action == "append":
+            content = requires.get("content")
+            if not content:
+                speak("No content provided to append.")
+                return {"error": "No content specified"}
+            return nvim_handler.append_to_file(filename, content)
 
     elif query_class == "debugging":
         suggestions = gemini_response.get("debugging_suggestions", {})
@@ -69,50 +109,40 @@ def execute_python_script(command):
         script_path = command.split("python ")[1].strip()
         if not os.path.exists(script_path):
             return {"success": False, "error": f"python: can't open file '{script_path}': [Errno 2] No such file or directory", "command": command}
-
-        prompts = extract_input_prompts(script_path)
         process = subprocess.Popen(command, shell=True, text=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        
-        inputs = []
-        if prompts:
-            for prompt in prompts:
-                speak(prompt)
-                print(f"{prompt} ", end="", flush=True)
-                user_input = input()
-                inputs.append(user_input)
-        
-        input_string = "\n".join(inputs) + "\n" if inputs else ""
-        stdout, stderr = process.communicate(input=input_string)
-        
+        stdout, stderr = process.communicate(timeout=30)
         if process.returncode == 0:
             return {"success": True, "output": stdout.strip()}
         else:
             return {"success": False, "error": stderr.strip(), "command": command}
+    except subprocess.TimeoutExpired:
+        process.kill()
+        return {"success": False, "error": f"Command timed out after 30 seconds", "command": command}
     except Exception as e:
         return {"success": False, "error": f"Execution failed: {str(e)}", "command": command}
 
 def execute_command(command):
     try:
-        process = subprocess.Popen(command, shell=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        stdout, stderr = process.communicate()
-        if process.returncode == 0:
-            return {"success": True, "output": stdout.strip()}
+        if "pip uninstall" in command:
+            command += " -y"
+        result = subprocess.run(command, shell=True, text=True, capture_output=True, timeout=30)
+        if result.returncode == 0:
+            return {"success": True, "output": result.stdout.strip()}
         else:
-            return {"success": False, "error": stderr.strip(), "command": command}
+            return {"success": False, "error": result.stderr.strip(), "command": command}
+    except subprocess.TimeoutExpired:
+        return {"success": False, "error": f"Command timed out after 30 seconds", "command": command}
     except Exception as e:
         return {"success": False, "error": f"Execution failed: {str(e)}", "command": command}
 
-def extract_input_prompts(script_path):
-    prompts = []
-    try:
-        with open(script_path, "r", encoding="utf-8") as file:
-            content = file.read()
-            matches = re.findall(r'input\s*\(\s*["\'](.*?)["\']\s*\)', content)
-            prompts.extend(matches)
-    except Exception as e:
-        print(f"Error reading script: {e}")
-    return prompts
-
+def extract_file_content(file_name):
+    if file_name and os.path.exists(file_name):
+        try:
+            with open(file_name, "r", encoding="utf-8") as file:
+                return file.read()
+        except Exception as e:
+            return f"Error reading file: {str(e)}"
+    return "No valid file found."
 
 def debug_command_error(error_text, command):
     debug_input = f"Debug this error while running '{command}':\n{error_text}\nProvide detailed debugging suggestions including error category, probable causes, step-by-step fix, a suggested code fix, and an auto-fix command (e.g., pip install <module> for ModuleNotFoundError)."
