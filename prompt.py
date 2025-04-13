@@ -8,7 +8,7 @@
 
 print("This is a test script for DevAssist.")
 
-# name = input("Enter your name: ")
+name = input("Enter your name: ")
 print(f"Hello, {name}!")
 age = input("Enter your age: ")
 print(f"You are {age} years old.")
