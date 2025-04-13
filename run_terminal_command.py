@@ -53,7 +53,8 @@ def execute_command(command):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,  # Capturing stderr separately
         text=True,
-        bufsize=1
+        bufsize=1,
+        shell=True,
     )
 
     # Start reading output
@@ -93,3 +94,5 @@ def execute_command(command):
     return {"success": True, "output": process.stdout.read().strip()}
 
     print("\n✅ Subprocess finished and exited cleanly.")
+
+# print(execute_command("cd"))
