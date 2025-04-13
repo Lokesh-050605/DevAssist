@@ -5,10 +5,11 @@ from nvim_handler import NvimHandler
 from utils import speak
 from query_generator import classify_query
 from query_gemini import query_gemini, response_parser
+from run_terminal_command import execute_command
 
 nvim_handler = NvimHandler()
 
-def process_response(classification_result, gemini_response):
+def process_response(classification_result, gemini_response,file_name):
     query_class = classification_result.get("class", "None")
 
     if query_class == "general_query":
@@ -31,14 +32,11 @@ def process_response(classification_result, gemini_response):
             print(f"Executing: {command_text} - {description}")
             speak(f"Executing {command_text}. {description}")
 
-            if command_text.startswith("python") and command_text.endswith((".py", ".com")):
-                result = execute_python_script(command_text)
-            else:
-                result = execute_command(command_text)
-
+            
+            result = execute_command(command_text)
+            print(f"Command result: {result}")
             if result["success"]:
-                print(f"Output:\n{result['output']}")
-                speak("Command executed successfully. Output: " + result["output"])
+                speak("Command executed successfully.")
                 command_outputs.append({"command": command_text, "output": result["output"]})
             else:
                 print(f"Error:\n{result['error']}")
@@ -55,42 +53,45 @@ def process_response(classification_result, gemini_response):
     elif query_class == "file_query":
         requires = classification_result.get("requires", {})
         action = requires.get("action")
-        filename = requires.get("filename")
-
-        if not filename:
-            speak("No filename provided.")
-            return {"error": "No filename specified"}
-
+    
         if action == "open":
+            filename = requires.get("filename")
+            if not filename:
+                speak("No filename provided.")
+                return {"error": "No filename specified"}
+            print(f"nvim_handler in open: {nvim_handler}")
             return nvim_handler.open_file(filename)
 
         elif action == "insert":
-            content = requires.get("content")
-            line = requires.get("line")
+            content = gemini_response.get("content")
+            line = gemini_response.get("line_no")
+            if not file_name:
+                speak("No filename provided.")
+                return {"error": "No filename specified"}
             if not content or not line:
                 speak("Missing content or line number.")
                 return {"error": "Missing content or line number"}
-            return nvim_handler.insert_line(filename, content, line)
+            return nvim_handler.insert_line(file_name, content, line)
 
         elif action == "find":
-            target = requires.get("target")
-            if not target:
-                speak("No search target provided.")
-                return {"error": "No search target specified"}
-            # Gemini helps find the line
-            file_content = extract_file_content(filename)
-            find_query = f"Find '{target}' in this file content:\n{file_content}\nReturn the line number where it starts as a plain integer."
-            find_classification = classify_query(find_query)
-            find_response = query_gemini(find_query, find_classification)
-            find_parsed = response_parser(find_response, find_classification)
-            return nvim_handler.find_in_file(filename, target, find_parsed)
+            function_name = gemini_response.get("function_name")
+            line_no = gemini_response.get("line_no")
+            if not file_name:
+                speak("No filename provided.")
+                return {"error": "No filename specified"}
+            if not function_name or not line_no:
+                speak("Missing function name or line number.")
+                return {"error": "Missing function name or line number"}
+            print(f"nvim_handler in find: {nvim_handler}")
+            return nvim_handler.find_function(file_name, function_name, line_no)
 
         elif action == "append":
-            content = requires.get("content")
+            print(f"gemini_response: {gemini_response}")
+            content = gemini_response.get("content")
             if not content:
                 speak("No content provided to append.")
                 return {"error": "No content specified"}
-            return nvim_handler.append_to_file(filename, content)
+            return nvim_handler.append_to_file(file_name, content)
 
     elif query_class == "debugging":
         suggestions = gemini_response.get("debugging_suggestions", {})
@@ -104,36 +105,36 @@ def process_response(classification_result, gemini_response):
         print("Unrecognized query class.")
         return {"error": "Unknown query classification."}
 
-def execute_python_script(command):
-    try:
-        script_path = command.split("python ")[1].strip()
-        if not os.path.exists(script_path):
-            return {"success": False, "error": f"python: can't open file '{script_path}': [Errno 2] No such file or directory", "command": command}
-        process = subprocess.Popen(command, shell=True, text=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        stdout, stderr = process.communicate(timeout=30)
-        if process.returncode == 0:
-            return {"success": True, "output": stdout.strip()}
-        else:
-            return {"success": False, "error": stderr.strip(), "command": command}
-    except subprocess.TimeoutExpired:
-        process.kill()
-        return {"success": False, "error": f"Command timed out after 30 seconds", "command": command}
-    except Exception as e:
-        return {"success": False, "error": f"Execution failed: {str(e)}", "command": command}
+# def execute_python_script(command):
+#     try:
+#         script_path = command.split("python ")[1].strip()
+#         if not os.path.exists(script_path):
+#             return {"success": False, "error": f"python: can't open file '{script_path}': [Errno 2] No such file or directory", "command": command}
+#         process = subprocess.Popen(command, shell=True, text=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+#         stdout, stderr = process.communicate(timeout=30)
+#         if process.returncode == 0:
+#             return {"success": True, "output": stdout.strip()}
+#         else:
+#             return {"success": False, "error": stderr.strip(), "command": command}
+#     except subprocess.TimeoutExpired:
+#         process.kill()
+#         return {"success": False, "error": f"Command timed out after 30 seconds", "command": command}
+#     except Exception as e:
+#         return {"success": False, "error": f"Execution failed: {str(e)}", "command": command}
 
-def execute_command(command):
-    try:
-        if "pip uninstall" in command:
-            command += " -y"
-        result = subprocess.run(command, shell=True, text=True, capture_output=True, timeout=30)
-        if result.returncode == 0:
-            return {"success": True, "output": result.stdout.strip()}
-        else:
-            return {"success": False, "error": result.stderr.strip(), "command": command}
-    except subprocess.TimeoutExpired:
-        return {"success": False, "error": f"Command timed out after 30 seconds", "command": command}
-    except Exception as e:
-        return {"success": False, "error": f"Execution failed: {str(e)}", "command": command}
+# def execute_command(command):
+#     try:
+#         if "pip uninstall" in command:
+#             command += " -y"
+#         result = subprocess.run(command, shell=True, text=True, capture_output=True, timeout=30)
+#         if result.returncode == 0:
+#             return {"success": True, "output": result.stdout.strip()}
+#         else:
+#             return {"success": False, "error": result.stderr.strip(), "command": command}
+#     except subprocess.TimeoutExpired:
+#         return {"success": False, "error": f"Command timed out after 30 seconds", "command": command}
+#     except Exception as e:
+#         return {"success": False, "error": f"Execution failed: {str(e)}", "command": command}
 
 def extract_file_content(file_name):
     if file_name and os.path.exists(file_name):

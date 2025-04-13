@@ -1,10 +1,10 @@
-#devassist.py
 import threading
 import speech_recognition as sr
 import queue
 from utils import speak, stop_speaking
 import time
 from command_processor import process_command
+
 
 # If you have your own processor, replace filler with process_command
 def filler(cmd):
@@ -18,6 +18,8 @@ recognizer = sr.Recognizer()
 input_queue = queue.Queue()
 stop_event = threading.Event()
 input_received = threading.Event()
+filename = ""
+file_handler = None
 
 def listen_for_voice_command():
     microphone = sr.Microphone()
@@ -102,6 +104,9 @@ def listen_for_keyboard_input():
         time.sleep(0.1)
 
 def process_inputs(process_func):
+    global filename
+    global file_handler
+    
     print(">> (Say 'Listen Assistant' or type a command...)")
 
     voice_thread = threading.Thread(target=listen_for_voice_command, daemon=True)
@@ -112,7 +117,7 @@ def process_inputs(process_func):
 
     while not stop_event.is_set():
         try:
-            input_type, cmd = input_queue.get()
+            print("filename:", filename)
             input_type, cmd = input_queue.get()
             print(f"Processing {input_type} input: {cmd}")
 
@@ -121,10 +126,23 @@ def process_inputs(process_func):
             if cmd.lower() == "exit":
                 speak("Goodbye.")
                 print("Exiting program...")
-                nvim_handler.stop_nvim()
                 break
+            
+            elif cmd.lower() == "done":
+                print(f"File handler to be closed: {file_handler}")
+                if file_handler:
+                    file_handler.stop_nvim()
+                    file_handler = None
+                filename = ""
+                print("File closed.")
+                speak("File closed.")
+                input_received.clear()
+                continue
 
-            process_func(cmd)
+            res = process_func(cmd, filename)
+            filename = res.get("filename", None)
+            if res.get("file_handler", None) is not None:
+                file_handler = res["file_handler"]
             speak("Command completed.")
             input_received.clear()
             print(">> Listening again...")
@@ -138,6 +156,8 @@ def main():
     finally:
         stop_event.set()
         stop_speaking()
+        if file_handler:
+            file_handler.stop_nvim()
 
 if __name__ == "__main__":
     main()

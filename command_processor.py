@@ -5,7 +5,7 @@ from utils import speak
 from query_generator import classify_query
 from query_gemini import query_gemini, response_parser
 
-def process_command(user_input):
+def process_command(user_input,filename):
     classification_result = classify_query(user_input)
     if not classification_result or "class" not in classification_result:
         print("Error: Classification failed.")
@@ -20,7 +20,7 @@ def process_command(user_input):
     
     speak(f"{classification_result['class']} type query.")
     
-    gemini_response = query_gemini(user_input, classification_result)
+    gemini_response = query_gemini(user_input, classification_result,filename)
     print(f"Gemini Response: {gemini_response}")  # Debug
     if gemini_response is None:
         print("Error: No response from Gemini.")
@@ -35,8 +35,9 @@ def process_command(user_input):
         return "Error: Parsing failed"
     
     speak("Processing command...")
-    response = process_response(classification_result, parsed_response)
+    response = process_response(classification_result, parsed_response,filename)
 
+    print(f"Final Response: {response}")  # Debug
     if isinstance(response, dict) and "error" in response:
         print("Error:", response["error"])
         speak("An error occurred while processing your command.")

@@ -26,6 +26,7 @@ def classify_query(user_input):
     """Classifies the given query and determines necessary prerequisites."""
     user_config = load_user_config()
     os_name = user_config.get("os", "Windows 10")
+    configure_api()
     
     classification_prompt = f'''
     You are a query classifier running on {os_name}. Classify this query:
@@ -50,14 +51,14 @@ def classify_query(user_input):
     - "push changes to git" → {{"class": "terminal_command", "requires": {{"command": "git status"}}}}
     - - "ModuleNotFoundError: No module named 'requests'" → {{"class": "debugging", "requires": {{"check_module": "requests"}}}}
     - "open test.py" → {{"class": "file_query", "requires": {{"action": "open", "filename": "test.py"}}}}
-    - "insert print hi at line 2 in test.py" → {{"class": "file_query", "requires": {{"action": "insert", "content": "print hi", "line": 2, "filename": "test.py"}}}}
-    - "find function that adds numbers in test.py" → {{"class": "file_query", "requires": {{"action": "find", "target": "function that adds numbers", "filename": "test.py"}}}}
     - "run" → {{"class": "terminal_command"}}
-    
+    - "insert print hi at line 2" → {{"class": "file_query", "requires": {{"action": "insert"}}}}
+    - "find function that adds numbers" → {{"class": "file_query", "requires": {{"action": "find"}}}}
+    - "append print hi" → {{"class": "file_query", "requires": {{"action": "append"}}}}
     Query: "{user_input}"
     Return strict JSON, no extra text.
     '''
-
+ 
 
     model = genai.GenerativeModel("gemini-1.5-flash")
     try:
@@ -86,7 +87,7 @@ def classify_query(user_input):
         print(f"Gemini error: {e}")
         return {"class": "error", "requires": {"message": f"Gemini failed: {str(e)}"}}
 
-def generate_query(user_input, classification_result):
+def generate_query(user_input, classification_result,filename):
     user_config = load_user_config()
     query_class = classification_result.get("class", "None")
     required = classification_result.get("requires", {})
@@ -133,19 +134,11 @@ def generate_query(user_input, classification_result):
         action = required.get("action")
         if action == "open":
             return json.dumps({"instruction": f"Open file {required['filename']} in Neovim", "requires": required})
-        elif action == "insert":
-            return json.dumps({"instruction": f"Insert '{required['content']}' at line {required['line']} in {required['filename']}", "requires": required})
-        elif action == "find":
-            return json.dumps({"instruction": f"Find '{required['target']}' in {required['filename']} and return line number", "requires": required})
-        elif action == "append":
-            return json.dumps({"instruction": f"Append '{required['content']}' to {required['filename']}", "requires": required})
-        action = required.get("action")
-        if action == "open":
-            return json.dumps({"instruction": f"Open file {required['filename']} in Neovim", "requires": required})
-        elif action == "insert":
-            return json.dumps({"instruction": f"Insert '{required['content']}' at line {required['line']} in {required['filename']}", "requires": required})
-        elif action == "find":
-            return json.dumps({"instruction": f"Find '{required['target']}' in {required['filename']} and return line number", "requires": required})
-        elif action == "append":
-            return json.dumps({"instruction": f"Append '{required['content']}' to {required['filename']}", "requires": required})
+        elif action == "insert" or action == "append" or action == "add" or action == "find":
+            if filename:
+                file_content = extract_file_content(filename)
+            return json.dumps({"instruction": f"{user_input}", "file_content": file_content})
+            
+        
+        
     return json.dumps({"error": "Invalid query classification."}, indent=4)

@@ -3,6 +3,8 @@ import subprocess
 
 def interactive_debugging(suggestions):
     """Interactively guide the user through debugging suggestions."""
+
+    print(f"Debugging Suggestions:{suggestions}")
     error_category = suggestions.get("error_category", "Unknown")
     probable_causes = suggestions.get("probable_causes", [])
     step_by_step_fix = suggestions.get("step_by_step_fix", [])
@@ -30,14 +32,14 @@ def interactive_debugging(suggestions):
                 result = subprocess.run(auto_fix_command, shell=True, text=True, capture_output=True)
                 if result.returncode == 0:
                     speak("Auto-fix applied successfully.")
-                    print(f"\n Auto-fix Output:\n{result.stdout}")
+                    print(f"\nAuto-fix Output:\n{result.stdout}")
                     return {"auto_fix_applied": auto_fix_command, "output": result.stdout}
                 else:
                     speak("Auto-fix failed. Let's try a manual fix.")
-                    print(f"\n Auto-fix failed:\n{result.stderr}")
+                    print(f"\nAuto-fix failed:\n{result.stderr}")
             except Exception as e:
                 speak("An error occurred while applying the fix.")
-                print(f"\n Error applying auto-fix: {str(e)}")
+                print(f"\nError applying auto-fix: {str(e)}")
         else:
             speak("Okay, proceeding with manual steps.")
 
@@ -48,17 +50,13 @@ def interactive_debugging(suggestions):
         for i, step in enumerate(step_by_step_fix, 1):
             print(f"Step {i}: {step}")
             speak(f"Step {i}: {step}")
-            response = input("Would you like to proceed to the next step? (yes/no): ").lower()
-            if response != "yes":
-                speak("Manual fix halted by user.")
-                return {"status": "manual_fix_incomplete", "step_reached": i}
+            
 
     # Final suggestion if available
     if suggested_fix:
         print(f"\nFinal Suggested Fix:\n{suggested_fix}")
         speak("Here is a final suggestion to fix the issue.")
         speak(suggested_fix)
-        
 
     speak("Debugging complete.")
     return {"status": "debugging_complete"}

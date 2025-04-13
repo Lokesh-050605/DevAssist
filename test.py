@@ -1,8 +1,17 @@
-#test.py
-print("This is a test script.")
-name = input("Enter your name: ")
+import os
+import sys
 
-age = input("Enter your age: ")
-print(f"Name: {name}\n")
-print(f"Age: {age}\n")
-print("Done!")
+
+def get_input():
+    name = input("Enter your name: ")
+    print(f"Hello, {name}!")
+
+def main():
+    print("Welcome to DevAssist.")
+    a=10
+    get_input()
+
+if __name__ == "__main__":
+    main()
+
+# This file takes user input and prints a greeting.

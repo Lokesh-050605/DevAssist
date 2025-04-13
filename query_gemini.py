@@ -1,3 +1,4 @@
+import re
 import google.generativeai as genai
 import json
 import time
@@ -6,7 +7,7 @@ from query_generator import generate_query
 last_request_time = 0
 min_interval = 4  # 4 sec delay for 15 RPM (Flash)
 
-def query_gemini(user_input, classification_result):
+def query_gemini(user_input, classification_result,filename=None):
     global last_request_time
     current_time = time.time()
     time_since_last = current_time - last_request_time
@@ -19,7 +20,7 @@ def query_gemini(user_input, classification_result):
     if "error" in classification_result:
         return {"error": "Failed to classify query."}
     
-    formatted_prompt = generate_query(user_input, classification_result)
+    formatted_prompt = generate_query(user_input, classification_result,filename)
     
     if formatted_prompt.startswith("{\"error\""):
         return json.loads(formatted_prompt)
@@ -51,7 +52,53 @@ def query_gemini(user_input, classification_result):
                 "If unsure or if it's risky, leave the field empty. "
                 "Do not return placeholder or made-up commands."
             )
+        if classification_result["class"]=="file_query":
+            required = classification_result.get("requires", {})
+            if required["action"]=="open":
+                return {"action": "open", "filename": required["filename"]}
+            elif required["action"]=="insert":
+                formatted_prompt += f"""
+                        Instructions:
 
+                        - Identify where to insert the code specified in the user command (e.g., print("hiii")).
+                        - If the user specifies 'above <code>' (e.g., 'above a1=10'), analyze the file_content to find the line number of '<code>' and use the line before it.
+                        - If a specific line number is provided, use that.
+                        - Generate the content to insert based on the file context (e.g., for a Python file, use Python syntax like print("hiii") for a print statement).
+                        - Return the response in this exact JSON format: 
+                            {{
+                                "action": "<action>", 
+                                "content": "<content>", 
+                                "line_no": <line_no>
+                            }} 
+                    """
+            elif required["action"]=="find":
+                formatted_prompt += f"""
+                        Instructions:
+
+                        - Identify a function or statement matching the functionality described in the user command (e.g., 'function that find sum' or 'where we get input for num').
+                        - Analyze the file_content to find the function or statement.
+                        - Return the response in this exact JSON format: 
+                            {{
+                                "action": "find",
+                                "function_name": "<function_name_or_statement>",
+                                "line_no": <line_no>
+                            }}
+                        - If no match is found, return empty function_name and line_no 1.  
+                    """
+                
+            elif required["action"]=="append":
+                formatted_prompt += f"""
+                    Instructions:
+                
+                        -Generate the content to append based on the user command and file context (e.g., for a Python file, use Python syntax like print("hiii") for a print statement).
+                        -The content will be appended to the end of the file.
+                        -Return the response in this exact JSON format: 
+                            {{
+                                "action": "append", 
+                                "content": "<content>",
+                            }}
+                        -Set line_no to the line number where the content will be appended (the new last line number).
+                    """
         response = model.generate_content(formatted_prompt)
         last_request_time = time.time()
         return response
@@ -89,6 +136,52 @@ def response_parser(response, classification):
                 return {"debugging_suggestions": suggestions}
             except json.JSONDecodeError:
                 return {"error": "Invalid JSON format in debugging response", "raw_text": response_text}
+        
+        elif query_class == "file_query":
+                if(classification["requires"]["action"]=="open"):
+                    return response
+                elif classification["requires"]["action"]=="insert":
+                    formatted_response = json.loads(response_text)
+                    action = formatted_response.get("action")
+                    content = formatted_response.get("content")
+                    line_no = formatted_response.get("line_no")
+
+                    if not action or not content or line_no is None:
+                        return {"error": "Incomplete response from Gemini", "raw_text": response_text}
+                    
+                    return {
+                        "action": action,
+                        "content": content,
+                        "line_no": line_no
+                    }
+                elif classification["requires"]["action"]=="find":
+                    formatted_response = json.loads(response_text)
+                    action = formatted_response.get("action")
+                    function_name = formatted_response.get("function_name")
+                    line_no = formatted_response.get("line_no")
+
+                    if not action or not function_name or line_no is None:
+                        return {"error": "Incomplete response from Gemini", "raw_text": response_text}
+                    
+                    return {
+                        "action": action,
+                        "function_name": function_name,
+                        "line_no": line_no
+                    }
+                elif classification["requires"]["action"]=="append":    
+                    cleaned_text = re.sub(r',\s*([\]}])', r'\1', response_text)
+                    formatted_response = json.loads(cleaned_text)
+                    print(f"formatted_response: {formatted_response}")
+                    action = formatted_response.get("action")
+                    content = formatted_response.get("content")
+
+                    if not action or not content:
+                        return {"error": "Incomplete response from Gemini", "raw_text": response_text}
+                    
+                    return {
+                        "action": action,
+                        "content": content,
+                    }
 
         return {"error": f"Unknown query classification: {query_class}"}
 
