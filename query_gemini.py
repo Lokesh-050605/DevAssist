@@ -99,6 +99,21 @@ def query_gemini(user_input, classification_result,filename=None):
                             }}
                         -Set line_no to the line number where the content will be appended (the new last line number).
                     """
+            elif required["action"] == "replace":
+                formatted_prompt += f"""
+                    Instructions:
+
+                    - From the user command, extract the word or phrase to **find** and the word or phrase to **replace it with**.
+                    - Return the response in this exact JSON format:
+                        {{
+                            "action": "replace",
+                            "old_word": "<old_word>",
+                            "new_word": "<new_word>"
+                        }}
+                    - If either word is unclear or missing, return an empty string for that field.
+                    - Only extract exact strings; no explanations.
+                """
+        print(f"Generated Prompt : \n{formatted_prompt}")
         response = model.generate_content(formatted_prompt)
         last_request_time = time.time()
         return response
@@ -182,6 +197,22 @@ def response_parser(response, classification):
                         "action": action,
                         "content": content,
                     }
+                
+                elif classification["requires"]["action"] == "replace":
+                    formatted_response = json.loads(response_text)
+                    action = formatted_response.get("action")
+                    old_word = formatted_response.get("old_word")
+                    new_word = formatted_response.get("new_word")
+
+                    if not action or old_word is None or new_word is None:
+                        return {"error": "Incomplete replace response", "raw_text": response_text}
+
+                    return {
+                        "action": action,
+                        "old_word": old_word,
+                        "new_word": new_word
+                    }
+
 
         return {"error": f"Unknown query classification: {query_class}"}
 

@@ -1,5 +1,7 @@
 import os
 import sys
+print("hii")
+print("hiii")
 
 
 def get_input():
@@ -15,3 +17,5 @@ if __name__ == "__main__":
     main()
 
 # This file takes user input and prints a greeting.
+# Added a comment to further explain the main function.
+

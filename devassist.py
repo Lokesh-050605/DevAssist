@@ -128,7 +128,12 @@ def process_inputs(process_func):
                 print("Exiting program...")
                 break
             
-            elif cmd.lower() == "done":
+            elif cmd.lower() == "done" or cmd.lower() == "close":
+                if file_handler is None:
+                    speak("No file is currently open.")
+                    print("No file is currently open.")
+                    input_received.clear()
+                    continue
                 print(f"File handler to be closed: {file_handler}")
                 if file_handler:
                     file_handler.stop_nvim()
@@ -140,7 +145,8 @@ def process_inputs(process_func):
                 continue
 
             res = process_func(cmd, filename)
-            filename = res.get("filename", None)
+            if res.get("filename", None) is not None:
+                filename = res.get("filename")
             if res.get("file_handler", None) is not None:
                 file_handler = res["file_handler"]
             speak("Command completed.")

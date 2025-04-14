@@ -92,6 +92,15 @@ def process_response(classification_result, gemini_response,file_name):
                 speak("No content provided to append.")
                 return {"error": "No content specified"}
             return nvim_handler.append_to_file(file_name, content)
+        
+        elif action == "replace":
+            old_word = gemini_response.get("old_word")
+            new_word = gemini_response.get("new_word")
+            if not all([file_name, old_word, new_word]):
+                speak("Missing filename or replacement words.")
+                return {"error": "Missing replace arguments"}
+            return nvim_handler.replace_word(file_name, old_word, new_word,case_sensitive=False)
+
 
     elif query_class == "debugging":
         suggestions = gemini_response.get("debugging_suggestions", {})

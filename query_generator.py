@@ -42,7 +42,9 @@ def classify_query(user_input):
     - "open <file>" → {{"action": "open", "filename": "<file>"}}
     - "insert <content> at line <num> in <file>" → {{"action": "insert", "content": "<content>", "line": <num>, "filename": "<file>"}}
     - "find <target> in <file>" → {{"action": "find", "target": "<target>", "filename": "<file>"}}
-    - "add/append <content> to <file>" → {{"action": "append", "content": "<content>", "filename": "<file>"}}
+    - "append <content> to <file>" → {{"action": "append", "content": "<content>", "filename": "<file>"}}
+    - "replace <old_word> with <new_word> in <file>" → {{"action": "replace", "old_word": "<old_word>", "new_word": "<new_word>", "filename": "<file>"}}
+
 
     Return valid JSON: {{"class": "<class>", "requires": {{<fields>}}}}.
     If error, return {{"class": "error", "requires": {{"message": "<reason>"}}}}.
@@ -55,6 +57,10 @@ def classify_query(user_input):
     - "insert print hi at line 2" → {{"class": "file_query", "requires": {{"action": "insert"}}}}
     - "find function that adds numbers" → {{"class": "file_query", "requires": {{"action": "find"}}}}
     - "append print hi" → {{"class": "file_query", "requires": {{"action": "append"}}}}
+    - "replace print with log in test.py" → {{"action": "replace", "old_word": "print", "new_word": "log", "filename": "test.py"}}
+    - "replace print with log" → {{"action": "replace", "old_word": "print", "new_word": "log"}}
+    - "change all print to log" → {{"action": "replace", "old_word": "print", "new_word": "log"}}
+
     Query: "{user_input}"
     Return strict JSON, no extra text.
     '''
@@ -134,11 +140,19 @@ def generate_query(user_input, classification_result,filename):
         action = required.get("action")
         if action == "open":
             return json.dumps({"instruction": f"Open file {required['filename']} in Neovim", "requires": required})
-        elif action == "insert" or action == "append" or action == "add" or action == "find":
+        elif action == "insert" or action == "append" or action == "find":
             if filename:
                 file_content = extract_file_content(filename)
             return json.dumps({"instruction": f"{user_input}", "file_content": file_content})
-            
-        
-        
+        elif action == "replace":
+            if filename:
+                file_content = extract_file_content(filename)
+            return json.dumps({
+                "instruction": f"{user_input}",
+                "old_word": required.get("old_word"),
+                "new_word": required.get("new_word"),
+                "filename": required.get("filename") or filename,
+                "file_content": file_content
+            })
+     
     return json.dumps({"error": "Invalid query classification."}, indent=4)

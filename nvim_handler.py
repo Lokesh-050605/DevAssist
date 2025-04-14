@@ -2,7 +2,8 @@ import pynvim
 import subprocess
 import os
 import time
-from utils import speak  # Assuming you have a 'utils.py' with a 'speak' function
+import re
+from utils import speak  
 
 class NvimHandler:
     def __init__(self):
@@ -11,23 +12,20 @@ class NvimHandler:
         self.nvim_path = os.path.join("C:\\Program Files\\nvim-win64\\bin", "nvim.exe")
         if not os.path.exists(self.nvim_path):
             self.nvim_path = "nvim"
-        self.socket_path = "\\\\.\\pipe\\nvim-pipe"  # Windows named pipe
+        self.socket_path = "\\\\.\\pipe\\nvim-pipe"
 
     def start_nvim(self, filename=None):
         if self.nvim_process is None:
             try:
-                # Start Neovim in a new console window with a server
                 cmd = [self.nvim_path, "--listen", self.socket_path]
                 if filename:
                     cmd.append(filename)
                 self.nvim_process = subprocess.Popen(
                     cmd,
-                    shell=False,  # Avoid shell inheritance
-                    creationflags=subprocess.CREATE_NEW_CONSOLE  # New window
+                    shell=False, 
+                    creationflags=subprocess.CREATE_NEW_CONSOLE
                 )
-                # Wait briefly for server to start
                 time.sleep(1)
-                # Connect to Neovim instance
                 self.nvim = pynvim.attach('socket', path=self.socket_path)
                 speak("Neovim started in a new window.")
                 print("Neovim started in a new window.")
@@ -43,7 +41,6 @@ class NvimHandler:
     def stop_nvim(self):
         if self.nvim:
             try:
-                # Force quit all buffers without saving or prompting
                 self.nvim.command("wq")
                 self.nvim.close()
             except Exception as e:
@@ -52,12 +49,11 @@ class NvimHandler:
 
         if self.nvim_process:
             try:
-                # Send terminate signal and give it time to exit
                 self.nvim_process.terminate()
                 self.nvim_process.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 print("Neovim process did not terminate gracefully, forcing kill...")
-                self.nvim_process.kill()  # Force kill if terminate fails
+                self.nvim_process.kill()
                 self.nvim_process.wait(timeout=5)
             except Exception as e:
                 print(f"Error terminating Neovim process: {e}")
@@ -96,27 +92,6 @@ class NvimHandler:
             print(f"Invalid line number {line}. File has only {total_lines} lines.")
             return {"status": "invalid_line", "filename": filename, "line": line}
 
-
-    # def find_in_file(self, filename, target, gemini_response):
-    #     if not self.nvim:
-    #         self.start_nvim(filename)
-    #     else:
-    #         self.nvim.command(f"e {filename}")
-    #     file_content = "\n".join(self.nvim.current.buffer[:])
-    #     if "general_response" in gemini_response:
-    #         line_number = int(gemini_response["general_response"])
-    #     else:
-    #         for i, line in enumerate(self.nvim.current.buffer, 1):
-    #             if target in line:
-    #                 line_number = i
-    #                 break
-    #         else:
-    #             line_number = 1
-    #     self.nvim.command(f":{line_number}")
-    #     speak(f"Moved cursor to line {line_number} for '{target}' in {filename}.")
-    #     print(f"Moved cursor to line {line_number} for '{target}' in {filename}.")
-    #     return {"status": "cursor_moved", "filename": filename, "line": line_number}
-
     def find_function(self, filename, function_name, line_no):
         if not self.nvim:
             self.start_nvim(filename)
@@ -145,9 +120,43 @@ class NvimHandler:
         speak(f"Appended '{content}' to the end of {filename}.")
         print(f"Appended '{content}' to the end of {filename}.")
         return {"status": "content_appended", "filename": filename, "content": content}
+    
+
+
+    def replace_word(self, filename, old_word, new_word, case_sensitive=True):
+        if not self.nvim:
+            self.start_nvim(filename)
+        else:
+            self.nvim.command(f"e {filename}")
+        
+        safe_old = re.escape(old_word)
+        safe_new = new_word.replace("\\", r"\\").replace("/", r"\/")
+        flags = "g" if case_sensitive else "gi"
+
+        try:
+            self.nvim.command(f":%s/{safe_old}/{safe_new}/{flags}")
+            self.nvim.command("w")
+            speak(f"Replaced all occurrences of '{old_word}' with '{new_word}' in {filename}.")
+            return {
+                "status": "word_replaced",
+                "old_word": old_word,
+                "new_word": new_word,
+                "case_sensitive": case_sensitive,
+                "filename": filename
+            }
+        except Exception as e:
+            speak(f"Could not find the word '{old_word}' in {filename}. No replacements made.")
+            return {
+                "status": "word_not_found",
+                "error": str(e),
+                "old_word": old_word,
+                "filename": filename
+            }
+
+
 
 # Driver Code
-if __name__ == "__main__":
+if __name__ == "__main__": 
     nvim_handler = NvimHandler()
 
     # Create a test file
@@ -160,12 +169,13 @@ if __name__ == "__main__":
     # Insert a line
     nvim_handler.insert_line(test_filename, "Inserted line.", 2)
 
-    # Find a line
-    gemini_response = {} # or gemini_response={"general_response":3}
-    nvim_handler.find_in_file(test_filename, "line 3", gemini_response)
+    
+    nvim_handler.find_function(test_filename, "function_name", 3)
 
     # Append to the file
     nvim_handler.append_to_file(test_filename, "Appended content.")
+
+    nvim_handler.replace_word(test_filename, "hii","This", case_sensitive=False)
 
     # Stop Neovim
     nvim_handler.stop_nvim()
