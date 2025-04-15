@@ -33,6 +33,7 @@ def listen_for_voice_command():
             with microphone as source:
                 recognizer.adjust_for_ambient_noise(source, duration=2)
                 print("Listening for wake word (say 'listen assistant')...")
+                speak("Listening for wake word (say 'listen assistant')...")
 
                 while not stop_event.is_set() and not input_received.is_set():
                     try:
@@ -158,6 +159,7 @@ def process_inputs(process_func):
 
 def main():
     try:
+        speak("DevAssist Activated")
         process_inputs(process_command)
     finally:
         stop_event.set()
