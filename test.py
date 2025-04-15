@@ -1,21 +1,20 @@
 import os
 import sys
-print("hii")
-print("hiii")
 
 
 def get_input():
-    name = input("Enter your name: ")
-    print(f"Hello, {name}!")
+    full_name = input("Enter your full_name: ")
+    print(f"Hello, {full_name}!")
 
 def main():
     print("Welcome to DevAssist.")
     a=10
+    print(a)
     get_input()
 
-if __name__ == "__main__":
-    main()
 
-# This file takes user input and prints a greeting.
-# Added a comment to further explain the main function.
+main()
 
+
+# This program greets the user and displays a welcome message.
+# Added a comment to explain the code's functionality.

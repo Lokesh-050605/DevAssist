@@ -4,7 +4,7 @@ import subprocess
 def interactive_debugging(suggestions):
     """Interactively guide the user through debugging suggestions."""
 
-    print(f"Debugging Suggestions:{suggestions}")
+    # print(f"Debugging Suggestions:{suggestions}")
     error_category = suggestions.get("error_category", "Unknown")
     probable_causes = suggestions.get("probable_causes", [])
     step_by_step_fix = suggestions.get("step_by_step_fix", [])
@@ -24,7 +24,7 @@ def interactive_debugging(suggestions):
     # Try auto-fix first if available
     if auto_fix_command:
         print(f"\nAuto-Fix Command Available: {auto_fix_command}")
-        speak("An automatic fix is available. Would you like me to try it?")
+        speak(f"An automatic fix is available. {auto_fix_command} Would you like me to try it?")
         response = input("Do you want to apply the auto-fix now? (yes/no): ").lower()
         if response == "yes":
             speak("Trying to apply auto-fix.")

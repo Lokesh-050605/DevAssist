@@ -44,7 +44,7 @@ def listen_for_voice_command():
                             print("Yes, I'm listening...")
                             break
                     except (sr.WaitTimeoutError, sr.UnknownValueError):
-                        print("...")
+                        # print("...")
                         continue
                     except sr.RequestError as e:
                         print(f"Speech service error: {e}")
