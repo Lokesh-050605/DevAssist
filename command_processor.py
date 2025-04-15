@@ -12,7 +12,7 @@ def process_command(user_input,filename):
         speak("Sorry, I couldn’t classify your command.")
         return "Error: Classification failed"
     
-    print("Classification Result:", classification_result)
+    # print("Classification Result:", classification_result)
     if classification_result["class"] == "error":
         print("Error from classifier:", classification_result["requires"]["message"])
         speak("Sorry, there was an issue processing your command.")
@@ -21,14 +21,14 @@ def process_command(user_input,filename):
     speak(f"{classification_result['class']} type query.")
     
     gemini_response = query_gemini(user_input, classification_result,filename)
-    print(f"Gemini Response: {gemini_response}")  # Debug
+    # print(f"Gemini Response: {gemini_response}")  # Debug
     if gemini_response is None:
         print("Error: No response from Gemini.")
         speak("Sorry, I couldn’t get a response from the assistant.")
         return "Error: No Gemini response"
     
     parsed_response = response_parser(gemini_response, classification_result)
-    print(f"Parsed Response: {parsed_response}")  # Debug
+    # print(f"Parsed Response: {parsed_response}")  # Debug
     if parsed_response is None:
         print("Error: Failed to parse Gemini response.")
         speak("An error occurred while processing your command.")
@@ -37,7 +37,7 @@ def process_command(user_input,filename):
     speak("Processing command...")
     response = process_response(classification_result, parsed_response,filename)
 
-    print(f"Final Response: {response}")  # Debug
+    # print(f"Final Response: {response}")  # Debug
     if isinstance(response, dict) and "error" in response:
         print("Error:", response["error"])
         speak("An error occurred while processing your command.")

@@ -71,7 +71,7 @@ def classify_query(user_input):
         response = model.generate_content(classification_prompt)
         if response and hasattr(response, 'text') and response.text:
             raw_response = response.text.strip()
-            print(f"Raw Gemini response: '{raw_response}'")  # Debug log
+            # print(f"Raw Gemini response: '{raw_response}'")  # Debug log
             
             # Extract JSON from markdown if present
             json_match = re.search(r'\{.*\}', raw_response, re.DOTALL)

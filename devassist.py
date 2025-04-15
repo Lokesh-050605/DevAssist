@@ -117,7 +117,7 @@ def process_inputs(process_func):
 
     while not stop_event.is_set():
         try:
-            print("filename:", filename)
+            # print("filename:", filename)
             input_type, cmd = input_queue.get()
             print(f"Processing {input_type} input: {cmd}")
 

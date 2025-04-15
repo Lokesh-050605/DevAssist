@@ -113,7 +113,7 @@ def query_gemini(user_input, classification_result,filename=None):
                     - If either word is unclear or missing, return an empty string for that field.
                     - Only extract exact strings; no explanations.
                 """
-        print(f"Generated Prompt : \n{formatted_prompt}")
+        # print(f"Generated Prompt : \n{formatted_prompt}")
         response = model.generate_content(formatted_prompt)
         last_request_time = time.time()
         return response
